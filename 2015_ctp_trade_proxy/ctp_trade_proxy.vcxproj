@@ -57,7 +57,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>..\ctp\</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\2015_include_lib\</AdditionalLibraryDirectories>
       <AdditionalDependencies>thosttraderapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>..\2015_include_lib\deftrade.def</ModuleDefinitionFile>
     </Link>

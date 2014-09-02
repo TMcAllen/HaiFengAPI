@@ -1,29 +1,29 @@
-#2015_test
-C#²âÊÔ´úÂë
+ï»¿#2015_test
+C#æµ‹è¯•ä»£ç 
 ##
 
 #2015_include_lib
-¹Ù·½ÎÄµµ(.h&.lib)<br/>
-defquote.def/deftrade.def µ¼³ö¶¨Òå<br/>
-hfQuote.h/hfTrade.h  C++Í·ÎÄ¼ş¶¨Òå<br/>
+å®˜æ–¹æ–‡æ¡£(.h&.lib)<br/>
+defquote.def/deftrade.def å¯¼å‡ºå®šä¹‰<br/>
+hfQuote.h/hfTrade.h  C++å¤´æ–‡ä»¶å®šä¹‰<br/>
 <br/>
 
 #2015_quote & 2015_trade
-C#·â×°,ÆäÖĞporxyÎªC++µ÷ÓÃÄ£Ê½,Trade/QuoteÎª±ê×¼windowsÄ£Ê½(¿ÉÔÚmatlabÀïµ÷ÓÃ).
+C#å°è£…,å…¶ä¸­porxyä¸ºC++è°ƒç”¨æ¨¡å¼,Trade/Quoteä¸ºæ ‡å‡†windowsæ¨¡å¼(å¯åœ¨matlabé‡Œè°ƒç”¨).
 <br/>
 
 #2015_ctp_quote_proxy & 2015_ctp_trade_proxy
-ctp C++·â×°´úÂë
+ctp C++å°è£…ä»£ç 
 <br/>
 
 #2015_xSpeed_quote_proxy & 2015_xSpeed_trade_proxy
-xSpeed C++·â×°´úÂë
+xSpeed C++å°è£…ä»£ç 
 <br/>
 
 #2015_femas_quote_proxy & 2015_femas_trade_proxy
-femas C++·â×°´úÂë
+femas C++å°è£…ä»£ç 
 <br/>
 
 #dll
-±àÒëºóÎÄµµ
+ç¼–è¯‘åæ–‡æ¡£
 <br/>

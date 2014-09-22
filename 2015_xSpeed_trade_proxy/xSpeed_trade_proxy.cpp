@@ -5,16 +5,13 @@
 #include "xSpeed_trade_proxy.h"
 
 DFITCTraderApi* api;
-long _session = -1;
-bool _started = false; //是否起动完成,控制查询
-HANDLE hThread;//启动时查询用
 
-void QryOnLaunch()
+void QryAccount()
 {
 	while (_session != 0)
 	{
-		Sleep(500);
 		ReqQryAccount();
+		Sleep(500);
 	}
 }
 
@@ -70,7 +67,7 @@ DllExport const char* WINAPI GetTradingDay()
 /// <param name="pHedge">策略标识,可作为某一类报单的标志</param>
 /// <param name="type">0-市价;1-限价;2-FAK;3-FOK[FAK优先FOK]</param>
 /// <returns>返回报单标识</returns>
-DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType)
+DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType, char *pCustom)
 {
 	DFITCInsertOrderField f;
 	memset(&f, 0, sizeof(DFITCInsertOrderField));
@@ -85,8 +82,7 @@ DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection,
 		break;
 	}
 	strcpy_s(f.instrumentID, sizeof(f.instrumentID), pInstrument);
-	f.localOrderID = clock();
-	f.lRequestID = ++req;
+	
 	switch (pOffset)
 	{
 	case Open:
@@ -135,6 +131,13 @@ DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection,
 		f.orderProperty = DFITC_SP_FOK;
 		break;
 	}
+	f.lRequestID = ++req;
+	if (pCustom == NULL)
+		pCustom = new char('\n');
+	string str(pCustom);
+	str = str.length() > 6 ? str.substr(0, 6) : (string(6 - str.length(), '0') + str);
+
+	f.localOrderID = req * 1000000 + atoi(str.c_str());
 	return api->ReqInsertOrder(&f);
 }
 
@@ -162,7 +165,7 @@ DllExport int WINAPI ReqOrderAction(long pOrderId)
 	return -1;
 }
 
-DllExport int WINAPI ReqQryOrder()
+int QryOrder()
 {
 	DFITCOrderField of;
 	memset(&of, 0, sizeof(DFITCOrderField));
@@ -170,7 +173,7 @@ DllExport int WINAPI ReqQryOrder()
 	of.lRequestID = ++req;
 	return api->ReqQryOrderInfo(&of);
 }
-DllExport int WINAPI ReqQryTrade()
+int QryTrade()
 {
 	DFITCMatchField tf;
 	memset(&tf, 0, sizeof(DFITCMatchField));
@@ -372,80 +375,12 @@ void CxSpeed_trade_proxy::OnRspQryPosition(struct DFITCPositionInfoRtnField * pP
 	}
 }
 
-void CxSpeed_trade_proxy::OnRspQryMatchInfo(struct DFITCMatchedRtnField * pRtnMatchData, struct DFITCErrorRtnField * pErrorInfo, bool bIsLast)
-{
-	if (_OnRspQryTrade)
-	{
-		TradeField t;
-		memset(&t, 0, sizeof(TradeField));
-		switch (pRtnMatchData->buySellType)
-		{
-		case DFITC_SPD_BUY:
-			t.Direction = Buy;
-			break;
-		case  DFITC_SPD_SELL:
-			t.Direction = Sell;
-			break;
-		}
-		switch (pRtnMatchData->speculator)
-		{
-		case DFITC_SPD_SPECULATOR:
-			t.Hedge = Speculation;
-			break;
-		case  DFITC_SPD_ARBITRAGE:
-			t.Hedge = Arbitrage;
-			break;
-		case  DFITC_SPD_HEDGE:
-			t.Hedge = Hedge;
-		}
-		switch (pRtnMatchData->openClose)
-		{
-		case DFITC_SPD_OPEN:
-			t.Offset = Open;
-			break;
-		case DFITC_SPD_CLOSE:
-			t.Offset = Close;
-			break;
-		case DFITC_SPD_CLOSETODAY:
-			t.Offset = CloseToday;
-			break;
-		case DFITC_SPD_EXECUTE:
-			t.Offset = Excute;
-			break;
-		}
-		strcpy_s(t.InstrumentID, sizeof(t.InstrumentID), pRtnMatchData->instrumentID);
-		strcpy_s(t.ExchangeID, sizeof(t.ExchangeID), pRtnMatchData->exchangeID);
-		t.OrderID = pRtnMatchData->spdOrderID;//*不*可以是localOrderID, 只用psdid;
-		t.Price = pRtnMatchData->matchedPrice;
-		strcpy_s(t.TradeTime, sizeof(t.TradeTime), pRtnMatchData->matchedTime);
-		strcpy_s(t.TradeID, sizeof(t.TradeID), pRtnMatchData->matchedID);
-		strcpy_s(t.TradingDay, sizeof(t.TradingDay), _TradingDay);
-		t.Volume = pRtnMatchData->matchedAmount;
-		((DefOnRspQryTrade)_OnRspQryTrade)(&t, bIsLast);
-	}
-	if (bIsLast && !_started)
-	{
-		_started = true;
-		hThread = CreateThread(
-			NULL,                                   // SD  
-			0,                                  // initial stack size  
-			(LPTHREAD_START_ROUTINE)QryOnLaunch,    // thread function  
-			NULL,                                    // thread argument  
-			0,                                   // creation option  
-			NULL//threadID                               // thread identifier  
-			);
-	}
-}
-
 void CxSpeed_trade_proxy::OnRspQryOrderInfo(struct DFITCOrderCommRtnField * pRtnOrderData, struct DFITCErrorRtnField * pErrorInfo, bool bIsLast)
 {
-	if (_OnRspQryOrder)// &&  && pRtnOrderData->orderStatus == DFITC_SPD_TRIGGERED) //柜台接收,未到交易所
+	OrderField f;
+	memset(&f, 0, sizeof(OrderField));
+	if (_id_order.find(pRtnOrderData->spdOrderID) == _id_order.end()) //未找到:非自己发送的委托
 	{
-		OrderField f;
-		if (_id_order.find(pRtnOrderData->spdOrderID) != _id_order.end()) //未找到:非自己发送的委托
-			f = _id_order[pRtnOrderData->spdOrderID];
-		else
-			memset(&f, 0, sizeof(OrderField));
 
 		//构造新的orderfield
 		switch (pRtnOrderData->buySellType)
@@ -502,17 +437,94 @@ void CxSpeed_trade_proxy::OnRspQryOrderInfo(struct DFITCOrderCommRtnField * pRtn
 		f.IsLocal = false;
 		f.LimitPrice = pRtnOrderData->insertPrice;
 
-		//f.OrderId = pRtnOrderData->localOrderID;
-		f.OrderId = pRtnOrderData->spdOrderID;
+		//f.OrderID = pRtnOrderData->localOrderID;
+		f.OrderID = pRtnOrderData->spdOrderID;
 		f.Volume = pRtnOrderData->orderAmount;
-		f.VolumeLeft = f.Volume;// -pRtnOrderData->matchedAmount;
-		_id_order[f.OrderId] = f;
-
-		((DefOnRspQryOrder)_OnRspQryOrder)(&f, bIsLast);
+		f.VolumeLeft = f.Volume;
+		_id_order[f.OrderID] = f;
 	}
+	else
+		f = _id_order[pRtnOrderData->spdOrderID];
+
+	//if (_OnRspQryOrder)// &&  && pRtnOrderData->orderStatus == DFITC_SPD_TRIGGERED) //柜台接收,未到交易所
+	//	((DefOnRspQryOrder)_OnRspQryOrder)(&f, bIsLast);
+
 	if (bIsLast && !_started)
 	{
 		ReqQryTrade();
+	}
+}
+
+void CxSpeed_trade_proxy::OnRspQryMatchInfo(struct DFITCMatchedRtnField * pRtnMatchData, struct DFITCErrorRtnField * pErrorInfo, bool bIsLast)
+{
+	TradeField t;
+	memset(&t, 0, sizeof(TradeField));
+	if (pRtnMatchData)
+	{
+		switch (pRtnMatchData->buySellType)
+		{
+		case DFITC_SPD_BUY:
+			t.Direction = Buy;
+			break;
+		case  DFITC_SPD_SELL:
+			t.Direction = Sell;
+			break;
+		}
+		switch (pRtnMatchData->speculator)
+		{
+		case DFITC_SPD_SPECULATOR:
+			t.Hedge = Speculation;
+			break;
+		case  DFITC_SPD_ARBITRAGE:
+			t.Hedge = Arbitrage;
+			break;
+		case  DFITC_SPD_HEDGE:
+			t.Hedge = Hedge;
+		}
+		switch (pRtnMatchData->openClose)
+		{
+		case DFITC_SPD_OPEN:
+			t.Offset = Open;
+			break;
+		case DFITC_SPD_CLOSE:
+			t.Offset = Close;
+			break;
+		case DFITC_SPD_CLOSETODAY:
+			t.Offset = CloseToday;
+			break;
+		case DFITC_SPD_EXECUTE:
+			t.Offset = Excute;
+			break;
+		}
+		strcpy_s(t.InstrumentID, sizeof(t.InstrumentID), pRtnMatchData->instrumentID);
+		strcpy_s(t.ExchangeID, sizeof(t.ExchangeID), pRtnMatchData->exchangeID);
+		t.OrderID = pRtnMatchData->spdOrderID;//*不*可以是localOrderID, 只用psdid;
+		t.Price = pRtnMatchData->matchedPrice;
+		strcpy_s(t.TradeTime, sizeof(t.TradeTime), pRtnMatchData->matchedTime);
+		strcpy_s(t.TradeID, sizeof(t.TradeID), pRtnMatchData->matchedID);
+		strcpy_s(t.TradingDay, sizeof(t.TradingDay), _TradingDay);
+		t.Volume = pRtnMatchData->matchedAmount;
+
+		char tid[128];
+		sprintf_s(tid, "%s%d", t.TradeID, t.Direction);
+		_id_trade[string(tid)] = t;
+	}
+	/*
+		if (_OnRspQryTrade)
+		{
+		((DefOnRspQryTrade)_OnRspQryTrade)(&t, bIsLast);
+		}*/
+	if (bIsLast && !_started)
+	{
+		_started = true;
+		hThread = CreateThread(
+			NULL,                                   // SD  
+			0,                                  // initial stack size  
+			(LPTHREAD_START_ROUTINE)QryOnLaunch,    // thread function  
+			NULL,                                    // thread argument  
+			0,                                   // creation option  
+			NULL//threadID                               // thread identifier  
+			);
 	}
 }
 
@@ -628,12 +640,13 @@ void CxSpeed_trade_proxy::OnRtnOrder(struct DFITCOrderRtnField * pRtnOrderData)
 		f.IsLocal = pRtnOrderData->sessionID == _session;
 		f.LimitPrice = pRtnOrderData->insertPrice;
 
-		//f.OrderId = pRtnOrderData->localOrderID;
-		f.OrderId = pRtnOrderData->spdOrderID;
+		//f.OrderID = pRtnOrderData->localOrderID;
+		f.OrderID = pRtnOrderData->spdOrderID;
 		f.Volume = pRtnOrderData->orderAmount;
 		f.VolumeLeft = f.Volume;
 
-		_id_order[f.OrderId] = f;
+		sprintf_s(f.Custom, "%d", pRtnOrderData->localOrderID % 1000000);
+		_id_order[f.OrderID] = f;
 
 		//只在首次响应时发通知
 		if (_OnRtnOrder)// &&  && pRtnOrderData->orderStatus == DFITC_SPD_TRIGGERED) //柜台接收,未到交易所
@@ -658,7 +671,7 @@ void CxSpeed_trade_proxy::OnRtnOrder(struct DFITCOrderRtnField * pRtnOrderData)
 		default:
 			f.Status = Normal;
 		}
-		_id_order[f.OrderId] = f;
+		_id_order[f.OrderID] = f;
 	}
 }
 
@@ -679,7 +692,7 @@ void CxSpeed_trade_proxy::OnRtnMatchedInfo(struct DFITCMatchRtnField * pRtnMatch
 			f.Status = Filled;
 		else
 			f.Status = Partial;
-		_id_order[f.OrderId] = f;
+		_id_order[f.OrderID] = f;
 		if (_OnRtnOrder)
 		{
 			((DefOnRtnOrder)_OnRtnOrder)(&f);

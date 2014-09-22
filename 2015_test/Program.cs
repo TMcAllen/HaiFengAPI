@@ -27,7 +27,7 @@ namespace ConsoleProxy
 				case '1': //CTP
 					t = new Trade("ctp_trade_proxy.dll")
 					{
-						Server = "tcp://211.95.40.130:51205",
+						Server = "tcp://211.95.40.130:51205", 
 						Broker = "1017",
 					};
 					q = new Quote("ctp_quote_proxy.dll")
@@ -88,14 +88,14 @@ namespace ConsoleProxy
 					q.ReqConnect();
 			};
 			t.OnRspUserLogout += (sender, e) => Console.WriteLine("OnRspUserLogout:{0}", e.Value);
-			t.OnRtnCancel += (sender, e) => Console.WriteLine("OnRtnCancel:{0}", e.Value.OrderId);
+			t.OnRtnCancel += (sender, e) => Console.WriteLine("OnRtnCancel:{0}", e.Value.OrderID);
 			t.OnRtnError += (sender, e) => Console.WriteLine("OnRtnError:{0}=>{1}", e.ErrorID, e.ErrorMsg);
 			t.OnRtnExchangeStatus += (sender, e) => Console.WriteLine("OnRtnExchangeStatus:{0}=>{1}", e.Exchange, e.Status);
 			t.OnRtnNotice += (sender, e) => Console.WriteLine("OnRtnNotice:{0}", e.Value);
 			t.OnRtnOrder += (sender, e) =>
 			{
 				Console.WriteLine("OnRtnOrder:{0}", e.Value);
-				_orderId = e.Value.OrderId;
+				_orderId = e.Value.OrderID;
 			};
 			t.OnRtnTrade += (sender, e) => Console.WriteLine("OnRtnTrade:{0}", e.Value.TradeID);
 

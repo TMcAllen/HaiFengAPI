@@ -7,9 +7,8 @@
 CctpTrade *spi;
 CThostFtdcTraderApi *api;
 map<string, InstrumentField> _id_instrument;
-map<long, string> _id_sysid; //orderid&sysid
-int _session = -1;
-HANDLE hThread;//启动时查询用
+map<long, string> _id_sysid; //OrderID&sysid
+
 
 DllExport void WINAPI CreateApi()
 {
@@ -53,15 +52,27 @@ DllExport const char* WINAPI GetTradingDay()
 	return _TradingDay;
 }
 
-DllExport int WINAPI ReqQryOrder()
+//DllExport int WINAPI ReqQryOrder()
+int QryOrder()
 {
+	/*if (_started)
+	{
+	if (_OnRspQryOrder)
+	{
+	for (map<long, OrderField>::iterator i = _id_order.begin(); i != _id_order.end(); ++i)
+	{
+	((DefOnRspQryOrder)_OnRspQryOrder)(&i->second, i == _id_order.end());
+	}
+	}
+	return;
+	}*/
 	CThostFtdcQryOrderField f;
 	memset(&f, 0, sizeof(CThostFtdcQryOrderField));
 	strcpy_s(f.BrokerID, _broker);
 	strcpy_s(f.InvestorID, _investor);
 	return api->ReqQryOrder(&f, ++req);
 }
-DllExport int WINAPI ReqQryTrade()
+int QryTrade()
 {
 	CThostFtdcQryTradeField f;
 	memset(&f, 0, sizeof(CThostFtdcQryTradeField));
@@ -86,7 +97,7 @@ DllExport int WINAPI ReqQryAccount()
 	return api->ReqQryTradingAccount(&f, ++req);
 }
 
-DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType)
+DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType, char* pCustom)
 {
 	CThostFtdcInputOrderField f;
 	memset(&f, 0, sizeof(CThostFtdcInputOrderField));
@@ -157,6 +168,11 @@ DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection,
 		break;
 	}
 
+	if (pCustom == NULL)
+		pCustom = new char('\n');
+	string str(pCustom);
+	str = str.length() > 6 ? str.substr(0, 6) : (string(6 - str.length(), ' ') + str);
+	sprintf_s(f.OrderRef, "%d%s", ++req, str.c_str());
 	return api->ReqOrderInsert(&f, ++req);
 }
 
@@ -166,17 +182,21 @@ DllExport int WINAPI ReqOrderAction(long pOrderId)
 	{
 		if (_OnRtnError)
 		{
-			((DefOnRtnError)_OnRtnError)(-1, "OrderActionError:no orderid.");
+			((DefOnRtnError)_OnRtnError)(pOrderId, "OrderActionError:no OrderID.");
 		}
 		return -1;
 	}
 	if (_id_sysid.find(pOrderId) == _id_sysid.end())
 	{
-		if (_OnRtnError)
+		Sleep(100); //增加等待返回时间
+		if (_id_sysid.find(pOrderId) == _id_sysid.end())
 		{
-			((DefOnRtnError)_OnRtnError)(-1, "OrderActionError:no sysid.");
+			if (_OnRtnError)
+			{
+				((DefOnRtnError)_OnRtnError)(pOrderId, "OrderActionError:no sysid.");
+			}
+			return -1;
 		}
-		return -1;
 	}
 
 	OrderField of = _id_order[pOrderId];// *iter->second;// ._id_order.find(pOrderId);
@@ -184,7 +204,7 @@ DllExport int WINAPI ReqOrderAction(long pOrderId)
 	{
 		if (_OnRtnError)
 		{
-			((DefOnRtnError)_OnRtnError)(-1, "OrderActionError:no instrumentid.");
+			((DefOnRtnError)_OnRtnError)(pOrderId, "OrderActionError:no instrumentid.");
 		}
 		return -1;
 	}
@@ -234,31 +254,12 @@ void CctpTrade::OnRspSettlementInfoConfirm(CThostFtdcSettlementInfoConfirmField 
 	memset(&f, 0, sizeof(CThostFtdcQryInstrumentField));
 	api->ReqQryInstrument(&f, ++req);
 }
-void QryOnLaunch()
+void QryAccount()
 {
-	Sleep(1200);
-	if(_session == 0)
-		return;
-	ReqQryAccount();
-
-	Sleep(1200);
-	if (_session == 0)
-		return;
-	ReqQryPosition();
-
-	Sleep(1200);
-	if (_session == 0)
-		return;
-	ReqQryOrder();
-
-	Sleep(1200);
-	if (_session == 0)		
-		return;
-	ReqQryTrade();
 	while (_session != 0)
 	{
 		ReqQryAccount();
-		Sleep(1200);
+		Sleep(1100);
 	}
 }
 void CctpTrade::OnRspQryInstrument(CThostFtdcInstrumentField *pInstrument, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
@@ -280,14 +281,83 @@ void CctpTrade::OnRspQryInstrument(CThostFtdcInstrumentField *pInstrument, CThos
 	}
 	if (bIsLast)
 	{
-		hThread = CreateThread(
-			NULL,                                   // SD  
-			0,                                  // initial stack size  
-			(LPTHREAD_START_ROUTINE)QryOnLaunch,    // thread function  
-			NULL,                                    // thread argument  
-			0,                                   // creation option  
-			NULL//threadID                               // thread identifier  
-			);
+		Sleep(1100);
+		if (_session == 0)
+			return;
+		ReqQryAccount();
+	}
+}
+
+void CctpTrade::OnRspQryTradingAccount(CThostFtdcTradingAccountField *pTradingAccount, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
+{
+	if (_OnRspQryTradingAccount)
+	{
+		TradingAccount f;
+		memset(&f, 0, sizeof(TradingAccount));
+		f.Available = pTradingAccount->Available;
+		f.CloseProfit = pTradingAccount->CloseProfit;
+		f.Commission = pTradingAccount->Commission;
+		f.CurrMargin = pTradingAccount->CurrMargin;
+		f.FrozenCash = pTradingAccount->FrozenCash;
+		f.PositionProfit = pTradingAccount->PositionProfit;
+		f.PreBalance = pTradingAccount->PreBalance;
+		f.Fund = f.PreBalance + f.CloseProfit + f.PositionProfit + pTradingAccount->Deposit - pTradingAccount->Withdraw;
+		((DefOnRspQryTradingAccount)_OnRspQryTradingAccount)(&f);
+	}
+	if (bIsLast && !_started)
+	{
+		Sleep(1100);
+		if (_session == 0)
+			return;
+		ReqQryPosition();
+	}
+}
+
+void CctpTrade::OnRspQryInvestorPosition(CThostFtdcInvestorPositionField *pInvestorPosition, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
+{
+	if (_OnRspQryPosition)
+	{
+		PositionField f;
+		memset(&f, 0, sizeof(PositionField));
+		if (pInvestorPosition)
+		{
+			switch (pInvestorPosition->HedgeFlag)
+			{
+			case  THOST_FTDC_HF_Speculation:
+				f.Hedge = Speculation;
+				break;
+			case  THOST_FTDC_HF_Arbitrage:
+				f.Hedge = Arbitrage;
+				break;
+			case  THOST_FTDC_HF_Hedge:
+				f.Hedge = Hedge;
+				break;
+			}
+			switch (pInvestorPosition->PosiDirection)
+			{
+			case THOST_FTDC_PD_Long:
+				f.Direction = Buy;
+				break;
+			default:
+				f.Direction = Sell;
+				break;
+			}
+
+			strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pInvestorPosition->InstrumentID);
+			//f.Margin = pInvestorPosition->UseMargin;
+			f.Price = pInvestorPosition->Position == 0 ? 0 : (pInvestorPosition->PositionCost / _id_instrument[pInvestorPosition->InstrumentID].VolumeMultiple / pInvestorPosition->Position);
+			f.Position = pInvestorPosition->Position;
+			f.TdPosition = pInvestorPosition->TodayPosition;
+			f.YdPosition = f.Position - f.TdPosition; //pInvestorPosition->YdPosition; 平仓后不知如何计算
+		}
+		((DefOnRspQryPosition)_OnRspQryPosition)(&f, bIsLast);
+	}
+	if (bIsLast && !_started)
+	{
+		Sleep(1100);
+		if (_session == 0)
+			return;
+		ReqQryOrder();
 	}
 }
 
@@ -297,74 +367,96 @@ void CctpTrade::OnRspQryOrder(CThostFtdcOrderField *pOrder, CThostFtdcRspInfoFie
 	memset(&f, 0, sizeof(OrderField));
 	if (pOrder)
 	{
-		//f.AvgPrice = pOrder
-		f.Direction = pOrder->Direction == THOST_FTDC_D_Buy ? Buy : Sell;
-		switch (pOrder->CombHedgeFlag[0])
+		long id = atol(pOrder->OrderLocalID);
+		if (_id_order.find(id) == _id_order.end())
 		{
-		case  THOST_FTDC_HF_Speculation:
-			f.Hedge = Speculation;
-			break;
-		case  THOST_FTDC_HF_Arbitrage:
-			f.Hedge = Arbitrage;
-			break;
-		case  THOST_FTDC_HF_Hedge:
-			f.Hedge = Hedge;
-			break;
+			//f.AvgPrice = pOrder
+			f.Direction = pOrder->Direction == THOST_FTDC_D_Buy ? Buy : Sell;
+			switch (pOrder->CombHedgeFlag[0])
+			{
+			case  THOST_FTDC_HF_Speculation:
+				f.Hedge = Speculation;
+				break;
+			case  THOST_FTDC_HF_Arbitrage:
+				f.Hedge = Arbitrage;
+				break;
+			case  THOST_FTDC_HF_Hedge:
+				f.Hedge = Hedge;
+				break;
+			}
+			switch (pOrder->Direction)
+			{
+			case THOST_FTDC_D_Buy:
+				f.Direction = Buy;
+				break;
+			default:
+				f.Direction = Sell;
+				break;
+			}
+			switch (pOrder->CombOffsetFlag[0])
+			{
+			case THOST_FTDC_OF_Open:
+				f.Offset = Open;
+				break;
+			case THOST_FTDC_OF_CloseToday:
+				f.Offset = CloseToday;
+				break;
+			case  THOST_FTDC_OF_Close:
+				f.Offset = Close;
+				break;
+			}
+			strcpy_s(f.InsertTime, sizeof(f.InsertTime), pOrder->InsertTime);
+			strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pOrder->InstrumentID);
+			//strcpy_s(f.TradeTime, sizeof(f.TradeTime), pOrder->UpdateTime);
+			f.IsLocal = pOrder->SessionID == _session;
+			f.LimitPrice = pOrder->LimitPrice;
+			//即时返回委托编号,由上层处理
+			//if (strlen(pOrder->OrderRef) == 9) //以hhmmssfff格式的标识
+			//	f.OrderID = atoi(pOrder->OrderRef);
+			//else
+			f.OrderID = atoi(pOrder->OrderLocalID);
+			switch (pOrder->OrderStatus)
+			{
+			case THOST_FTDC_OST_Canceled:
+				f.Status = Canceled;
+				break;
+			case THOST_FTDC_OST_AllTraded:
+				f.Status = Filled;
+				break;
+			case THOST_FTDC_OST_PartTradedQueueing:
+				f.Status = Partial;
+				break;
+			default:
+				f.Status = Normal;
+				break;
+			}
+			f.Volume = pOrder->VolumeTotalOriginal;
+
+			f.VolumeLeft = f.Volume;	//需要计算均价用//2014.9.9注销
+
+			int len = string(pOrder->OrderRef).length(); //2014.9.22增加custom
+			if (len > 6)
+			{
+				for (int i = 0; i < 6; ++i)
+				{
+					f.Custom[i] = pOrder->OrderRef[len - 6 + i];
+				}
+			}
+			_id_order[f.OrderID] = f;
 		}
-		switch (pOrder->Direction)
-		{
-		case THOST_FTDC_D_Buy:
-			f.Direction = Buy;
-			break;
-		default:
-			f.Direction = Sell;
-			break;
-		}
-		switch (pOrder->CombOffsetFlag[0])
-		{
-		case THOST_FTDC_OF_Open:
-			f.Offset = Open;
-			break;
-		case THOST_FTDC_OF_CloseToday:
-			f.Offset = CloseToday;
-			break;
-		case  THOST_FTDC_OF_Close:
-			f.Offset = Close;
-			break;
-		}
-		strcpy_s(f.InsertTime, sizeof(f.InsertTime), pOrder->InsertTime);
-		strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pOrder->InstrumentID);
-		//strcpy_s(f.TradeTime, sizeof(f.TradeTime), pOrder->UpdateTime);
-		f.IsLocal = pOrder->SessionID == _session;
-		f.LimitPrice = pOrder->LimitPrice;
-		//即时返回委托编号,由上层处理
-		//if (strlen(pOrder->OrderRef) == 9) //以hhmmssfff格式的标识
-		//	f.OrderId = atoi(pOrder->OrderRef);
-		//else
-		f.OrderId = atoi(pOrder->OrderLocalID);
-		switch (pOrder->OrderStatus)
-		{
-		case THOST_FTDC_OST_Canceled:
-			f.Status = Canceled;
-			break;
-		case THOST_FTDC_OST_AllTraded:
-			f.Status = Filled;
-			break;
-		case THOST_FTDC_OST_PartTradedQueueing:
-			f.Status = Partial;
-			break;
-		default:
-			f.Status = Normal;
-			break;
-		}
-		f.Volume = pOrder->VolumeTotalOriginal;
-		//f.VolumeLeft =pOrder->VolumeTotal;	//order响应中为实际剩余
-		f.VolumeLeft = f.Volume;	//需要计算均价用
-		_id_order[f.OrderId] = f;
+		else
+			f = _id_order[id];
 	}
-	if (_OnRspQryOrder)
+	/*if (_OnRspQryOrder)
 	{
-		((DefOnRspQryOrder)_OnRspQryOrder)(&f, bIsLast);
+	((DefOnRspQryOrder)_OnRspQryOrder)(&f, bIsLast);
+	}*/
+	if (bIsLast && !_started)
+	{
+		Sleep(1100);
+		if (_session == 0)
+			return;
+		ReqQryTrade();
 	}
 }
 
@@ -430,69 +522,25 @@ void CctpTrade::OnRspQryTrade(CThostFtdcTradeField *pTrade, CThostFtdcRspInfoFie
 		strcpy_s(f.TradeTime, sizeof(f.TradeTime), pTrade->TradeTime);
 		strcpy_s(f.TradingDay, sizeof(f.TradingDay), pTrade->TradingDay);
 		f.Volume = pTrade->Volume;
+		char tid[128];
+		sprintf_s(tid, "%s%d", f.TradeID, f.Direction);
+		_id_trade[string(tid)] = f;
 	}
-	if (_OnRspQryTrade)
+	/*if (_OnRspQryTrade)
 	{
-		((DefOnRspQryTrade)_OnRspQryTrade)(&f, bIsLast);
-	}
-}
-
-void CctpTrade::OnRspQryInvestorPosition(CThostFtdcInvestorPositionField *pInvestorPosition, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
-{
-	if (_OnRspQryPosition)
+	((DefOnRspQryTrade)_OnRspQryTrade)(&f, bIsLast);
+	}*/
+	if (bIsLast && !_started)
 	{
-		PositionField f;
-		memset(&f, 0, sizeof(PositionField));
-		if (pInvestorPosition)
-		{
-			switch (pInvestorPosition->HedgeFlag)
-			{
-			case  THOST_FTDC_HF_Speculation:
-				f.Hedge = Speculation;
-				break;
-			case  THOST_FTDC_HF_Arbitrage:
-				f.Hedge = Arbitrage;
-				break;
-			case  THOST_FTDC_HF_Hedge:
-				f.Hedge = Hedge;
-				break;
-			}
-			switch (pInvestorPosition->PosiDirection)
-			{
-			case THOST_FTDC_PD_Long:
-				f.Direction = Buy;
-				break;
-			default:
-				f.Direction = Sell;
-				break;
-			}
-
-			strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pInvestorPosition->InstrumentID);
-			//f.Margin = pInvestorPosition->UseMargin;
-			f.Price = pInvestorPosition->Position == 0 ? 0 : (pInvestorPosition->PositionCost / _id_instrument[pInvestorPosition->InstrumentID].VolumeMultiple / pInvestorPosition->Position);
-			f.Position = pInvestorPosition->Position;
-			f.TdPosition = pInvestorPosition->TodayPosition;
-			f.YdPosition = f.Position - f.TdPosition; //pInvestorPosition->YdPosition; 平仓后不知如何计算
-		}
-		((DefOnRspQryPosition)_OnRspQryPosition)(&f, bIsLast);
-	}
-}
-
-void CctpTrade::OnRspQryTradingAccount(CThostFtdcTradingAccountField *pTradingAccount, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
-{
-	if (_OnRspQryTradingAccount)
-	{
-		TradingAccount f;
-		memset(&f, 0, sizeof(TradingAccount));
-		f.Available = pTradingAccount->Available;
-		f.CloseProfit = pTradingAccount->CloseProfit;
-		f.Commission = pTradingAccount->Commission;
-		f.CurrMargin = pTradingAccount->CurrMargin;
-		f.FrozenCash = pTradingAccount->FrozenCash;
-		f.PositionProfit = pTradingAccount->PositionProfit;
-		f.PreBalance = pTradingAccount->PreBalance;
-		f.Fund = f.PreBalance + f.CloseProfit + f.PositionProfit + pTradingAccount->Deposit - pTradingAccount->Withdraw;
-		((DefOnRspQryTradingAccount)_OnRspQryTradingAccount)(&f);
+		_started = true;
+		hThread = CreateThread(
+			NULL,                                   // SD  
+			0,                                  // initial stack size  
+			(LPTHREAD_START_ROUTINE)QryOnLaunch,    // thread function  
+			NULL,                                    // thread argument  
+			0,                                   // creation option  
+			NULL//threadID                               // thread identifier  
+			);
 	}
 }
 
@@ -541,8 +589,7 @@ void CctpTrade::OnRtnOrder(CThostFtdcOrderField *pOrder)
 {
 	long id = atol(pOrder->OrderLocalID);
 	OrderField f;
-	bool first = _id_order.find(id) == _id_order.end();
-	if (first)
+	if (_id_order.find(id) == _id_order.end())
 	{
 		memset(&f, 0, sizeof(OrderField));
 
@@ -584,11 +631,21 @@ void CctpTrade::OnRtnOrder(CThostFtdcOrderField *pOrder)
 		//strcpy_s(f.TradeTime, sizeof(f.TradeTime), pOrder->UpdateTime);
 		f.IsLocal = pOrder->SessionID == _session;
 		f.LimitPrice = pOrder->LimitPrice;
-		f.OrderId = id;
+		f.OrderID = id;
 		f.Volume = pOrder->VolumeTotalOriginal;
 		f.VolumeLeft = f.Volume;// pOrder->VolumeTotal;
 		//f->VolumeLeft = pOrder->VolumeTotal; //由ontrade处理
 		f.Status = Normal;
+
+		int len = string(pOrder->OrderRef).length();
+		if (len > 6)
+		{
+			for (int i = 0; i < 6; ++i)
+			{
+				f.Custom[i] = pOrder->OrderRef[len - 6 + i];
+			}
+		}
+
 		if (_OnRtnOrder)
 		{
 			((DefOnRtnOrder)_OnRtnOrder)(&f);
@@ -626,7 +683,7 @@ void CctpTrade::OnRtnOrder(CThostFtdcOrderField *pOrder)
 		if (_OnRtnError && strstr(pOrder->StatusMsg, "被拒绝") != NULL)
 		{
 			char msg[512];
-			sprintf_s(msg, "OrderInsertError(id:%d):%s", f.OrderId, pOrder->StatusMsg);
+			sprintf_s(msg, "OrderInsertError(id:%d):%s", f.OrderID, pOrder->StatusMsg);
 			((DefOnRtnError)_OnRtnError)(-1, msg);
 		}
 	}
@@ -653,53 +710,58 @@ void CctpTrade::OnRtnTrade(CThostFtdcTradeField *pTrade)
 			((DefOnRtnOrder)_OnRtnOrder)(&f);
 		}
 	}
+
+	TradeField f;
+	memset(&f, 0, sizeof(TradeField));
+	f.OrderID = id;
+
+	switch (pTrade->HedgeFlag)
+	{
+	case  THOST_FTDC_HF_Speculation:
+		f.Hedge = Speculation;
+		break;
+	case  THOST_FTDC_HF_Arbitrage:
+		f.Hedge = Arbitrage;
+		break;
+	case  THOST_FTDC_HF_Hedge:
+		f.Hedge = Hedge;
+		break;
+	}
+	switch (pTrade->Direction)
+	{
+	case THOST_FTDC_D_Buy:
+		f.Direction = Buy;
+		break;
+	default:
+		f.Direction = Sell;
+		break;
+	}
+	switch (pTrade->OffsetFlag)
+	{
+	case THOST_FTDC_OF_Open:
+		f.Offset = Open;
+		break;
+	case THOST_FTDC_OF_CloseToday:
+		f.Offset = CloseToday;
+		break;
+	case  THOST_FTDC_OF_Close:
+		f.Offset = Close;
+		break;
+	}
+	strcpy_s(f.ExchangeID, sizeof(f.ExchangeID), pTrade->ExchangeID);
+	strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pTrade->InstrumentID);
+	f.OrderID = atol(pTrade->OrderLocalID);
+	f.Price = pTrade->Price;
+	strcpy_s(f.TradeID, sizeof(f.TradeID), pTrade->TradeID);
+	strcpy_s(f.TradeTime, sizeof(f.TradeTime), pTrade->TradeTime);
+	strcpy_s(f.TradingDay, sizeof(f.TradingDay), pTrade->TradingDay);
+	f.Volume = pTrade->Volume;
+	char tid[128];
+	sprintf_s(tid, "%s%d", pTrade->TradeID, pTrade->Direction);
+	_id_trade[tid] = f;
+
 	if (_OnRtnTrade)
 	{
-		TradeField f;
-		memset(&f, 0, sizeof(TradeField));
-		f.OrderID = id;
-
-		switch (pTrade->HedgeFlag)
-		{
-		case  THOST_FTDC_HF_Speculation:
-			f.Hedge = Speculation;
-			break;
-		case  THOST_FTDC_HF_Arbitrage:
-			f.Hedge = Arbitrage;
-			break;
-		case  THOST_FTDC_HF_Hedge:
-			f.Hedge = Hedge;
-			break;
-		}
-		switch (pTrade->Direction)
-		{
-		case THOST_FTDC_D_Buy:
-			f.Direction = Buy;
-			break;
-		default:
-			f.Direction = Sell;
-			break;
-		}
-		switch (pTrade->OffsetFlag)
-		{
-		case THOST_FTDC_OF_Open:
-			f.Offset = Open;
-			break;
-		case THOST_FTDC_OF_CloseToday:
-			f.Offset = CloseToday;
-			break;
-		case  THOST_FTDC_OF_Close:
-			f.Offset = Close;
-			break;
-		}
-		strcpy_s(f.ExchangeID, sizeof(f.ExchangeID), pTrade->ExchangeID);
-		strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pTrade->InstrumentID);
-		f.OrderID = atol(pTrade->OrderLocalID);
-		f.Price = pTrade->Price;
-		strcpy_s(f.TradeID, sizeof(f.TradeID), pTrade->TradeID);
-		strcpy_s(f.TradeTime, sizeof(f.TradeTime), pTrade->TradeTime);
-		strcpy_s(f.TradingDay, sizeof(f.TradingDay), pTrade->TradingDay);
-		f.Volume = pTrade->Volume;
 		((DefOnRtnTrade)_OnRtnTrade)(&f);
 	}
 }
@@ -725,7 +787,7 @@ void CctpTrade::OnRspOrderAction(CThostFtdcInputOrderActionField *pInputOrderAct
 	{
 		char msg[512];
 		sprintf_s(msg, "%s:%s", "OrderActionError:", pRspInfo->ErrorMsg);
-		((DefOnRtnError)_OnRtnError)(pRspInfo == NULL ? -1 : pRspInfo->ErrorID, msg);
+		((DefOnRtnError)_OnRtnError)((long)pRspInfo->ErrorID, msg);
 	}
 }
 
@@ -735,7 +797,7 @@ void CctpTrade::OnErrRtnOrderAction(CThostFtdcOrderActionField *pOrderAction, CT
 	{
 		char msg[512];
 		sprintf_s(msg, "%s:%s", "OrderActionError:", pRspInfo->ErrorMsg);
-		((DefOnRtnError)_OnRtnError)(pRspInfo == NULL ? -1 : pRspInfo->ErrorID, msg);
+		((DefOnRtnError)_OnRtnError)(atol(pOrderAction->OrderLocalID), msg);
 	}
 }
 

@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <time.h>
 #include <map>
+#include <string>
 
 // exchange[8], xxxtime[16], id[32], msg[128]
 ///////// 函数封装 ////////
@@ -265,7 +266,7 @@ struct OrderField
 	/// <summary>
 	/// 报单标识
 	/// </summary>
-	long OrderId;
+	long OrderID;
 
 	/// <summary>
 	/// 合约
@@ -330,7 +331,12 @@ struct OrderField
 	/// <summary>
 	/// 是否自身报单
 	/// </summary>
-	bool IsLocal;
+	int IsLocal;
+	
+	/// <summary>
+	/// 客户自定义字段(xSpeed仅支持数字)
+	/// </summary>
+	char Custom[8];
 };
 
 /// <summary>
@@ -462,20 +468,75 @@ DllExport int WINAPI ReqUserLogin(char* pInvestor, char* pPwd, char* pBroker);
 DllExport void WINAPI ReqUserLogout();
 DllExport const char* WINAPI GetTradingDay();
 
-DllExport int WINAPI ReqQryOrder();
-DllExport int WINAPI ReqQryTrade();
-DllExport int WINAPI ReqQryPosition();
-DllExport int WINAPI ReqQryAccount();
-
-DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType);
-DllExport int WINAPI ReqOrderAction(long pOrderId);
-
+HANDLE hThread;//启动时查询用
 using namespace std;
 int req = 0;
 char _TradingDay[16];
 char _investor[16];
 char _broker[16];
 map<long, OrderField> _id_order;
+map<string, TradeField> _id_trade;
+bool _started = false;
+int _session = -1; //==0时作为查询循环退出条件
+
+int QryOrder();
+int QryTrade();
+void QryAccount();
+
+DllExport int WINAPI ReqQryOrder()
+{	
+	if (_started)
+	{
+		if (_OnRspQryOrder)
+		{
+			for (map<long, OrderField>::iterator i = _id_order.begin(); i != _id_order.end(); ++i)
+			{
+				((DefOnRspQryOrder)_OnRspQryOrder)(&i->second, i == _id_order.end());
+			}
+		}
+		return 0;
+	}
+	QryOrder();
+}
+DllExport int WINAPI ReqQryTrade()
+{
+	if (_started)
+	{
+		if (_OnRspQryTrade)
+		{
+			for (map<string, TradeField>::iterator i = _id_trade.begin(); i != _id_trade.end(); ++i)
+			{
+				((DefOnRspQryTrade)_OnRspQryTrade)(&i->second, i == _id_trade.end());
+			}
+		}
+		return 0;
+	}
+	QryTrade();
+}
+DllExport int WINAPI ReqQryPosition();
+DllExport int WINAPI ReqQryAccount();
+
+DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType, char *pCustom);
+DllExport int WINAPI ReqOrderAction(long pOrderId);
+
+void QryOnLaunch()
+{
+	if (_OnRspQryOrder)
+	{
+		for (map<long, OrderField>::iterator i = _id_order.begin(); i != _id_order.end(); ++i)
+		{
+			((DefOnRspQryOrder)_OnRspQryOrder)(&i->second, i == _id_order.end());
+		}
+	}
+	if (_OnRspQryTrade)
+	{
+		for (map<string, TradeField>::iterator i = _id_trade.begin(); i != _id_trade.end(); ++i)
+		{
+			((DefOnRspQryTrade)_OnRspQryTrade)(&i->second, i == _id_trade.end());
+		}
+	}
+	QryAccount();
+}
 
 /*
 登录后完成获取tradingday

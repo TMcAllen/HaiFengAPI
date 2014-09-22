@@ -1,4 +1,11 @@
-﻿#2015_test
+﻿#HaiFengTrading API
+C++简易封装方便C++调用
+C#两种封装方式,增加matlab支持
+完全开源,无经纪商限制
+多接口统一,CTP,femas,xSpeed
+##
+
+#2015_test
 C#测试代码
 ##
 

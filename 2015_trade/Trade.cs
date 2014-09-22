@@ -139,7 +139,7 @@ namespace Trade2015
 		public TradingAccount TradingAccount = new TradingAccount();
 
 		#region 注册响应
-		public delegate void FrontConnected(object sender, EventArgs args);
+		public delegate void FrontConnected(object sender, EventArgs e);
 
 		private FrontConnected _OnFrontConnected;
 
@@ -155,7 +155,7 @@ namespace Trade2015
 			}
 		}
 
-		public delegate void RspUserLogin(object sender, IntEventArgs args);
+		public delegate void RspUserLogin(object sender, IntEventArgs e);
 
 		private RspUserLogin _OnRspUserLogin;
 
@@ -171,7 +171,7 @@ namespace Trade2015
 			}
 		}
 
-		public delegate void RspUserLogout(object sender, IntEventArgs args);
+		public delegate void RspUserLogout(object sender, IntEventArgs e);
 
 		private RspUserLogout _OnRspUserLogout;
 
@@ -187,7 +187,7 @@ namespace Trade2015
 			}
 		}
 
-		public delegate void RtnError(object sender, ErrorEventArgs args);
+		public delegate void RtnError(object sender, ErrorEventArgs e);
 
 		private RtnError _OnRtnError;
 
@@ -203,7 +203,7 @@ namespace Trade2015
 			}
 		}
 
-		public delegate void RtnNotice(object sender, StringEventArgs args);
+		public delegate void RtnNotice(object sender, StringEventArgs e);
 
 		private RtnNotice _OnRtnNotice;
 
@@ -219,7 +219,7 @@ namespace Trade2015
 			}
 		}
 
-		public delegate void RtnExchangeStatus(object sender, StatusEventArgs args);
+		public delegate void RtnExchangeStatus(object sender, StatusEventArgs e);
 
 		private RtnExchangeStatus _OnRtnExchangeStatus;
 
@@ -235,7 +235,7 @@ namespace Trade2015
 			}
 		}
 
-		public delegate void RtnOrder(object sender, OrderArgs args);
+		public delegate void RtnOrder(object sender, OrderArgs e);
 
 		private RtnOrder _OnRtnOrder;
 
@@ -265,7 +265,7 @@ namespace Trade2015
 			}
 		}
 
-		public delegate void RtnTrade(object sender, TradeArgs args);
+		public delegate void RtnTrade(object sender, TradeArgs e);
 
 		private RtnTrade _OnRtnTrade;
 
@@ -354,7 +354,7 @@ namespace Trade2015
 
 		void _import_OnRtnOrder(OrderField pOrder)
 		{
-			OrderField f = DicOrderField.GetOrAdd(pOrder.OrderId, new OrderField());
+			OrderField f = DicOrderField.GetOrAdd(pOrder.OrderID, new OrderField());
 			foreach (var info in pOrder.GetType().GetFields())
 			{
 				f.GetType().GetField(info.Name).SetValue(f, Convert.ChangeType(info.GetValue(pOrder), f.GetType().GetField(info.Name).FieldType));
@@ -368,7 +368,7 @@ namespace Trade2015
 			}
 		}
 
-		private void _import_OnRtnTrade(TradeField pTrade)
+		void _import_OnRtnTrade(TradeField pTrade)
 		{
 			//tradeid增加方向标识(自成交冲突)
 			TradeField f = DicTradeField.GetOrAdd(pTrade.TradeID + (int)pTrade.Direction, new TradeField
@@ -403,6 +403,7 @@ namespace Trade2015
 				{
 					pf.TdPosition -= Math.Min(pf.TdPosition, pTrade.Volume);
 				}
+				pf.YdPosition -= Math.Max(0, pTrade.Volume - pf.TdPosition);
 				pf.Position -= pTrade.Volume;
 			}
 			//有关orderfield中的avgprice和tradetime字段,已在C++层进行处理
@@ -433,7 +434,7 @@ namespace Trade2015
 
 		void _import_OnRtnCancel(OrderField pOrder)
 		{
-			OrderField f = DicOrderField.GetOrAdd(pOrder.OrderId, new OrderField());
+			OrderField f = DicOrderField.GetOrAdd(pOrder.OrderID, new OrderField());
 			foreach (var info in pOrder.GetType().GetFields())
 			{
 				f.GetType().GetField(info.Name).SetValue(f, Convert.ChangeType(info.GetValue(pOrder), f.GetType().GetField(info.Name).FieldType));
@@ -465,14 +466,14 @@ namespace Trade2015
 					continue;
 				f.GetType().GetField(info.Name).SetValue(f, Convert.ChangeType(info.GetValue(pTrade), f.GetType().GetField(info.Name).FieldType));
 			}
-			OrderField of;
-			if (DicOrderField.TryGetValue(pTrade.OrderID, out of))
-			{
-				int preTrade = of.Volume - of.VolumeLeft;
-				of.AvgPrice = (of.AvgPrice * preTrade + pTrade.Price * pTrade.Volume) / (preTrade + pTrade.Volume);
-				of.TradeTime = pTrade.TradeTime;
-				of.VolumeLeft -= pTrade.Volume;
-			}
+			//OrderField of;
+			//if (DicOrderField.TryGetValue(pTrade.OrderID, out of))
+			//{
+			//	int preTrade = of.Volume - of.VolumeLeft;
+			//	of.AvgPrice = (of.AvgPrice * preTrade + pTrade.Price * pTrade.Volume) / (preTrade + pTrade.Volume);
+			//	of.TradeTime = pTrade.TradeTime;
+			//	of.VolumeLeft -= pTrade.Volume;
+			//}
 		}
 
 		void _import_OnRspQryOrder(OrderField pField, bool pLast)
@@ -482,7 +483,7 @@ namespace Trade2015
 			{
 				return;
 			}
-			OrderField f = DicOrderField.GetOrAdd(pField.OrderId, new OrderField());
+			OrderField f = DicOrderField.GetOrAdd(pField.OrderID, new OrderField());
 			foreach (var info in pField.GetType().GetFields())
 			{
 				f.GetType().GetField(info.Name).SetValue(f, Convert.ChangeType(info.GetValue(pField), f.GetType().GetField(info.Name).FieldType));
@@ -581,9 +582,9 @@ namespace Trade2015
 		/// <param name="pVolume"></param>
 		/// <param name="pHedge"></param>
 		/// <returns>正确返回0</returns>
-		public int ReqOrderInsert(string pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge = HedgeType.Speculation, OrderType pType = OrderType.Limit)
+		public int ReqOrderInsert(string pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge = HedgeType.Speculation, OrderType pType = OrderType.Limit, string pCustom="HFapi")
 		{
-			return _proxy.ReqOrderInsert(pInstrument, pDirection, pOffset, pPrice, pVolume, pHedge, pType);
+			return _proxy.ReqOrderInsert(pInstrument, pDirection, pOffset, pPrice, pVolume, pHedge, pType, pCustom);
 		}
 
 		public int ReqOrderAction(int pOrderId)

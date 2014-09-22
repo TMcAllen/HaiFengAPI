@@ -6,6 +6,8 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
+using System.Threading;
 
 namespace Quote2015
 {
@@ -350,7 +352,7 @@ namespace Quote2015
 			}
 		}
 
-		public delegate void FrontConnected(object sender, EventArgs args);
+		public delegate void FrontConnected(object sender, EventArgs e);
 
 		private FrontConnected _OnFrontConnected;
 
@@ -366,7 +368,7 @@ namespace Quote2015
 			}
 		}
 
-		public delegate void RspUserLogin(object sender, IntEventArgs args);
+		public delegate void RspUserLogin(object sender, IntEventArgs e);
 
 		private RspUserLogin _OnRspUserLogin;
 
@@ -382,7 +384,7 @@ namespace Quote2015
 			}
 		}
 
-		public delegate void RspUserLogout(object sender, IntEventArgs args);
+		public delegate void RspUserLogout(object sender, IntEventArgs e);
 
 		private RspUserLogout _OnRspUserLogout;
 
@@ -398,7 +400,7 @@ namespace Quote2015
 			}
 		}
 
-		public delegate void RtnError(object sender, ErrorEventArgs args);
+		public delegate void RtnError(object sender, ErrorEventArgs e);
 
 		private RtnError _OnRtnError;
 
@@ -459,10 +461,11 @@ namespace Quote2015
 
 			if (_OnRtnTick != null)
 			{
-				_OnRtnTick(this, new TickEventArgs
+				new Thread(() => _OnRtnTick(this, new TickEventArgs
 				{
 					Tick = t,
-				});
+				})).
+				Start();
 			}
 		}
 

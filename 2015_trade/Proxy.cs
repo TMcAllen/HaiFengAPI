@@ -277,7 +277,7 @@ namespace Trade2015
 		/// <summary>
 		/// 报单标识
 		/// </summary>
-		public int OrderId;
+		public int OrderID;
 
 		/// <summary>
 		/// 合约
@@ -346,6 +346,12 @@ namespace Trade2015
 		/// 是否自身委托
 		/// </summary>
 		public bool IsLocal;
+
+		/// <summary>
+		/// 客户自定义字段(xSpeed仅支持数字)
+		/// </summary>
+		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 8)]
+		public string Custom;
 	}
 
 	/// <summary>
@@ -496,7 +502,7 @@ namespace Trade2015
 
 		private delegate string DefGetTradingDay();
 
-		private delegate int DefReqOrderInsert(string pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType);
+		private delegate int DefReqOrderInsert(string pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType, string pCustom);
 
 		private delegate int DefReqOrderAction(int pOrderId);
 
@@ -771,7 +777,7 @@ namespace Trade2015
 			}
 			Directory.CreateDirectory("log");
 		}
-		
+
 
 		public int ReqConnect(string pFront)
 		{
@@ -825,9 +831,9 @@ namespace Trade2015
 		/// <param name="pHedge"></param>
 		/// <param name="pType">报单类型</param>
 		/// <returns></returns>
-		public int ReqOrderInsert(string pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType)
+		public int ReqOrderInsert(string pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType, string pCustom)
 		{
-			return ((DefReqOrderInsert)Invoke(this._handle, "ReqOrderInsert", typeof(DefReqOrderInsert)))(pInstrument, pDirection, pOffset, pPrice, pVolume, pHedge, pType);
+			return ((DefReqOrderInsert)Invoke(this._handle, "ReqOrderInsert", typeof(DefReqOrderInsert)))(pInstrument, pDirection, pOffset, pPrice, pVolume, pHedge, pType, pCustom);
 		}
 
 		public int ReqOrderAction(int pOrderId)

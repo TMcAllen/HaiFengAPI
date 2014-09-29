@@ -196,7 +196,6 @@ namespace Quote2015
 		public delegate void RtnMarketData(MarketData pMarketData);
 
 		private RtnMarketData _OnRtnMarketData;
-
 		public event RtnMarketData OnRtnMarketData
 		{
 			add
@@ -220,7 +219,11 @@ namespace Quote2015
 		~Proxy()
 		{
 			FreeLibrary(_handle);
+			if (File.Exists(_file))
+				File.Delete(_file);
 		}
+
+		private string _file;
 
 
 		/// <summary>
@@ -228,7 +231,13 @@ namespace Quote2015
 		/// </summary>
 		protected void LoadDll(string pFile)
 		{
-			this._handle = LoadLibrary(pFile);// Environment.CurrentDirectory + "\\" + pFile);
+			if (File.Exists(pFile))
+			{
+				_file = DateTime.Now.Ticks + ".dll";
+				File.Copy(pFile, _file);
+
+				this._handle = LoadLibrary(_file); // Environment.CurrentDirectory + "\\" + pFile);
+			}
 			if (this._handle == IntPtr.Zero)
 			{
 				throw (new Exception(String.Format(" 没有找到 :{0}.", Environment.CurrentDirectory + "\\" + pFile)));
@@ -452,6 +461,12 @@ namespace Quote2015
 
 		void Quote_OnRtnDepthMarketData(MarketData pMarketData)
 		{
+			if (string.IsNullOrEmpty(pMarketData.InstrumentID) || string.IsNullOrEmpty(pMarketData.UpdateTime)
+				|| pMarketData.LastPrice > pMarketData.UpperLimitPrice)
+			{
+				return;
+			}
+
 			var t = DicTick.GetOrAdd(pMarketData.InstrumentID, new MarketData());
 
 			foreach (FieldInfo fi in typeof(MarketData).GetFields())
@@ -461,6 +476,15 @@ namespace Quote2015
 
 			if (_OnRtnTick != null)
 			{
+				//修正数据
+				if (t.AskPrice > t.LastPrice)
+				{
+					t.AskPrice = t.LastPrice;
+				}
+				if (t.BidPrice > t.LastPrice)
+				{
+					t.BidPrice = t.LastPrice;
+				}
 				new Thread(() => _OnRtnTick(this, new TickEventArgs
 				{
 					Tick = t,

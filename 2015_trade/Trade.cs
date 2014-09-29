@@ -399,11 +399,17 @@ namespace Trade2015
 			else
 			{
 				pf = this.DicPositionField.GetOrAdd(pTrade.InstrumentID + "_" + (pTrade.Direction == DirectionType.Buy ? "Sell" : "Buy"), new PositionField());
-				if (pf.TdPosition > 0)// pTrade.ExchangeID == "SHFE" && pTrade.Offset == OffsetType.CloseToday)
+				if (pTrade.Offset == OffsetType.CloseToday)
 				{
-					pf.TdPosition -= Math.Min(pf.TdPosition, pTrade.Volume);
+					pf.TdPosition -= pTrade.Volume;
 				}
-				pf.YdPosition -= Math.Max(0, pTrade.Volume - pf.TdPosition);
+				else
+				{
+					int tdClose = Math.Min(pf.TdPosition, pTrade.Volume);
+					if (pf.TdPosition > 0)
+						pf.TdPosition -= tdClose;
+					pf.YdPosition -= Math.Max(0, pTrade.Volume - tdClose);
+				}
 				pf.Position -= pTrade.Volume;
 			}
 			//有关orderfield中的avgprice和tradetime字段,已在C++层进行处理
@@ -582,7 +588,7 @@ namespace Trade2015
 		/// <param name="pVolume"></param>
 		/// <param name="pHedge"></param>
 		/// <returns>正确返回0</returns>
-		public int ReqOrderInsert(string pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge = HedgeType.Speculation, OrderType pType = OrderType.Limit, string pCustom="HFapi")
+		public int ReqOrderInsert(string pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge = HedgeType.Speculation, OrderType pType = OrderType.Limit, string pCustom = "HFapi")
 		{
 			return _proxy.ReqOrderInsert(pInstrument, pDirection, pOffset, pPrice, pVolume, pHedge, pType, pCustom);
 		}

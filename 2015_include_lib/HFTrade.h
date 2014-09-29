@@ -336,7 +336,7 @@ struct OrderField
 	/// <summary>
 	/// 客户自定义字段(xSpeed仅支持数字)
 	/// </summary>
-	char Custom[8];
+	char Custom[6];
 };
 
 /// <summary>
@@ -542,4 +542,5 @@ void QryOnLaunch()
 登录后完成获取tradingday
 登录后:qryaccount, qryposition, qryorder, qrytrade
 */
+
 

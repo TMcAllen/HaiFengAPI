@@ -437,6 +437,8 @@ namespace Trade2015
 		~Proxy()
 		{
 			FreeLibrary(_handle);
+			if (File.Exists(_file))
+				File.Delete(_file);
 		}
 
 		/// <summary>
@@ -762,6 +764,7 @@ namespace Trade2015
 		}
 		#endregion
 
+		private string _file;
 
 		/// <summary>
 		/// 加载C++文件,取得相应函数
@@ -770,7 +773,13 @@ namespace Trade2015
 		/// <exception cref="Exception"></exception>
 		protected void LoadDll(string pFile)
 		{
-			this._handle = LoadLibrary(pFile);// Environment.CurrentDirectory + "\\" + pFile);
+			if (File.Exists(pFile))
+			{
+				_file = DateTime.Now.Ticks + ".dll";
+				File.Copy(pFile, _file);
+
+				this._handle = LoadLibrary(_file); // Environment.CurrentDirectory + "\\" + pFile);
+			}
 			if (this._handle == IntPtr.Zero)
 			{
 				throw (new Exception(String.Format(" 没有找到 :{0}.", Environment.CurrentDirectory + "\\" + pFile)));

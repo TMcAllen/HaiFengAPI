@@ -173,7 +173,7 @@ DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection,
 	string str(pCustom);
 	str = str.length() > 6 ? str.substr(0, 6) : (string(6 - str.length(), ' ') + str);
 	sprintf_s(f.OrderRef, "%d%s", ++req, str.c_str());
-	return api->ReqOrderInsert(&f, ++req);
+	return api->ReqOrderInsert(&f, req);
 }
 
 DllExport int WINAPI ReqOrderAction(long pOrderId)
@@ -669,7 +669,7 @@ void CctpTrade::OnRtnOrder(CThostFtdcOrderField *pOrder)
 		f.Status = Normal;
 		break;
 	}
-	if (pOrder->OrderSysID && strlen(pOrder->OrderSysID) > 0)
+	if (pOrder->OrderSysID)// && strlen(pOrder->OrderSysID) > 0)
 	{
 		_id_sysid[id] = string(pOrder->OrderSysID);  //≥∑µ•”√
 	}

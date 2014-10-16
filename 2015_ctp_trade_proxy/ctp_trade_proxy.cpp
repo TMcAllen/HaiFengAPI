@@ -294,14 +294,17 @@ void CctpTrade::OnRspQryTradingAccount(CThostFtdcTradingAccountField *pTradingAc
 	{
 		TradingAccount f;
 		memset(&f, 0, sizeof(TradingAccount));
-		f.Available = pTradingAccount->Available;
-		f.CloseProfit = pTradingAccount->CloseProfit;
-		f.Commission = pTradingAccount->Commission;
-		f.CurrMargin = pTradingAccount->CurrMargin;
-		f.FrozenCash = pTradingAccount->FrozenCash;
-		f.PositionProfit = pTradingAccount->PositionProfit;
-		f.PreBalance = pTradingAccount->PreBalance;
-		f.Fund = f.PreBalance + f.CloseProfit + f.PositionProfit + pTradingAccount->Deposit - pTradingAccount->Withdraw;
+		if (pTradingAccount)
+		{
+			f.Available = pTradingAccount->Available;
+			f.CloseProfit = pTradingAccount->CloseProfit;
+			f.Commission = pTradingAccount->Commission;
+			f.CurrMargin = pTradingAccount->CurrMargin;
+			f.FrozenCash = pTradingAccount->FrozenCash;
+			f.PositionProfit = pTradingAccount->PositionProfit;
+			f.PreBalance = pTradingAccount->PreBalance;
+			f.Fund = f.PreBalance + f.CloseProfit + f.PositionProfit + pTradingAccount->Deposit - pTradingAccount->Withdraw;
+		}
 		((DefOnRspQryTradingAccount)_OnRspQryTradingAccount)(&f);
 	}
 	if (bIsLast && !_started)

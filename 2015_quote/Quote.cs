@@ -488,8 +488,7 @@ namespace Quote2015
 				new Thread(() => _OnRtnTick(this, new TickEventArgs
 				{
 					Tick = t,
-				})).
-				Start();
+				})).Start();
 			}
 		}
 

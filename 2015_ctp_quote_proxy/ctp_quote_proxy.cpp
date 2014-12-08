@@ -4,6 +4,7 @@
 #include "ctp_quote_proxy.h"
 #include "../2015_include_lib/HFQuote.h"
 #include <stdio.h>
+#include <iostream>
 
 CThostFtdcMdApi *api;
 CThostFtdcMdSpi *spi;
@@ -113,6 +114,14 @@ void CctpQuote::OnRtnDepthMarketData(CThostFtdcDepthMarketDataField *pDepthMarke
 {
 	if (_OnRtnDepthMarketData)
 	{
+		/*if (strcmp(pDepthMarketData->InstrumentID,"p1501")==0)
+		{
+			std::cout << pDepthMarketData->ActionDay << "." << pDepthMarketData->UpdateTime << "\t";
+		}*/
+		if (pDepthMarketData->UpdateTime == NULL)
+		{
+			return;
+		}
 		MarketData f;
 		memset(&f, 0, sizeof(MarketData));
 		f.AskPrice1 = pDepthMarketData->AskPrice1;
@@ -125,7 +134,12 @@ void CctpQuote::OnRtnDepthMarketData(CThostFtdcDepthMarketDataField *pDepthMarke
 		f.LowerLimitPrice = pDepthMarketData->LowerLimitPrice;
 		f.OpenInterest = pDepthMarketData->OpenInterest;
 		f.UpdateMillisec = pDepthMarketData->UpdateMillisec;
-		sprintf_s(f.UpdateTime, "%s %s", pDepthMarketData->ActionDay, pDepthMarketData->UpdateTime);// "%4d%2d%2d%s", day / 10000, day % 10000 / 100, day % 100, time.erase(':'));
+
+		sprintf_s(f.UpdateTime, "%s", pDepthMarketData->UpdateTime);
+		//if (strlen(pDepthMarketData->ActionDay) == 8)
+		//	sprintf_s(f.UpdateTime, "%s %s", pDepthMarketData->ActionDay, pDepthMarketData->UpdateTime);// "%4d%2d%2d%s", day / 10000, day % 10000 / 100, day % 100, time.erase(':'));
+		//else
+		//	sprintf_s(f.UpdateTime, "%s %s",pDepthMarketData->TradingDay, pDepthMarketData->UpdateTime);
 		f.UpperLimitPrice = pDepthMarketData->UpperLimitPrice;
 		f.Volume = pDepthMarketData->Volume;
 		((DefOnRtnDepthMarketData)_OnRtnDepthMarketData)(&f);

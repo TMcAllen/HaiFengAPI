@@ -35,6 +35,7 @@ DllExport int WINAPI ReqUserLogin(char* pInvestor, char* pPwd, char* pBroker)
 	strcpy_s(f.UserProductInfo, "@Haifeng");
 	strcpy_s(_broker, f.BrokerID);
 	strcpy_s(_investor, f.UserID);
+	strcpy_s(_TradingDay, "");
 	return api->ReqUserLogin(&f, ++req);
 }
 DllExport void WINAPI ReqUserLogout()
@@ -45,7 +46,7 @@ DllExport void WINAPI ReqUserLogout()
 }
 DllExport const char* WINAPI GetTradingDay()
 {
-	if (strlen(_TradingDay) == 0)
+	if (_TradingDay || strlen(_TradingDay) == 0)
 	{
 		strcpy_s(_TradingDay, api->GetTradingDay());
 	}
@@ -243,13 +244,16 @@ void CctpTrade::OnRspUserLogin(CThostFtdcRspUserLoginField *pRspUserLogin, CThos
 		memset(&f, 0, sizeof(CThostFtdcSettlementInfoConfirmField));
 		strcpy_s(f.BrokerID, sizeof(f.BrokerID), _broker);
 		strcpy_s(f.InvestorID, sizeof(f.InvestorID), _investor);
-		api->ReqSettlementInfoConfirm(&f, ++req);
+		if (pRspInfo->ErrorID == 0)
+			api->ReqSettlementInfoConfirm(&f, ++req);
 		((DefOnRspUserLogin)_OnRspUserLogin)(pRspInfo == NULL ? 0 : pRspInfo->ErrorID);
 	}
 }
 
 void CctpTrade::OnRspSettlementInfoConfirm(CThostFtdcSettlementInfoConfirmField *pSettlementInfoConfirm, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
 {
+	if (pRspInfo->ErrorID != 0) return;
+
 	CThostFtdcQryInstrumentField f;
 	memset(&f, 0, sizeof(CThostFtdcQryInstrumentField));
 	api->ReqQryInstrument(&f, ++req);
@@ -264,20 +268,21 @@ void QryAccount()
 }
 void CctpTrade::OnRspQryInstrument(CThostFtdcInstrumentField *pInstrument, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
 {
-	InstrumentField f;
-	memset(&f, 0, sizeof(InstrumentField));
 	if (pInstrument)
 	{
+		InstrumentField f;
+		memset(&f, 0, sizeof(InstrumentField));
 		strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pInstrument->InstrumentID);
 		strcpy_s(f.ExchangeID, sizeof(f.ExchangeID), pInstrument->ExchangeID);
 		f.PriceTick = pInstrument->PriceTick;
 		f.VolumeMultiple = pInstrument->VolumeMultiple;
 		strcpy_s(f.ProductID, sizeof(f.ProductID), pInstrument->ProductID);
 		_id_instrument[string(f.InstrumentID)] = f;
-	}
-	if (_OnRspQryInstrument)
-	{
-		((DefOnRspQryInstrument)_OnRspQryInstrument)(&f, bIsLast);
+
+		if (_OnRspQryInstrument)
+		{
+			((DefOnRspQryInstrument)_OnRspQryInstrument)(&f, bIsLast);
+		}
 	}
 	if (bIsLast)
 	{

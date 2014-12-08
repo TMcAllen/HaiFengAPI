@@ -2,8 +2,10 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Runtime.InteropServices;
 
 namespace Trade2015
 {
@@ -521,9 +523,9 @@ namespace Trade2015
 		void _import_OnRspQryInstrument(InstrumentField pInstrument, bool pLast)
 		{
 			InstrumentField f = DicInstrumentField.GetOrAdd(pInstrument.InstrumentID, new InstrumentField());
-			foreach (var info in pInstrument.GetType().GetFields())
+			foreach (var info in f.GetType().GetFields())
 			{
-				f.GetType().GetField(info.Name).SetValue(f, info.GetValue(pInstrument));
+				info.SetValue(f, info.GetValue(pInstrument));
 			}
 		}
 
@@ -544,7 +546,7 @@ namespace Trade2015
 			IsLogin = pErrId == 0;
 			if (IsLogin)
 			{
-				TradingDay = _proxy.GetTradingDay();
+				TradingDay = Marshal.PtrToStringAnsi(_proxy.GetTradingDay());
 			}
 			if (_OnRspUserLogin != null)
 			{
@@ -575,6 +577,7 @@ namespace Trade2015
 
 		public void ReqUserLogout()
 		{
+			IsLogin = false;
 			_proxy.ReqUserLogout();
 		}
 

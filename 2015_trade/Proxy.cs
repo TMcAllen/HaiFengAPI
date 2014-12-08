@@ -502,7 +502,7 @@ namespace Trade2015
 
 		private delegate void DefReqUserLogout();
 
-		private delegate string DefGetTradingDay();
+		private delegate IntPtr DefGetTradingDay();
 
 		private delegate int DefReqOrderInsert(string pInstrument, DirectionType pDirection, OffsetType pOffset, double pPrice, int pVolume, HedgeType pHedge, OrderType pType, string pCustom);
 
@@ -804,7 +804,7 @@ namespace Trade2015
 			((DefReqUserLogout)Invoke(this._handle, "ReqUserLogout", typeof(DefReqUserLogout)))();
 		}
 
-		public string GetTradingDay()
+		public IntPtr GetTradingDay()
 		{
 			return ((DefGetTradingDay)Invoke(this._handle, "GetTradingDay", typeof(DefGetTradingDay)))();
 		}

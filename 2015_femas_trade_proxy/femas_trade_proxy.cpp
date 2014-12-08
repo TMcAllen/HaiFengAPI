@@ -9,6 +9,7 @@ CUstpFtdcTraderApi *api;
 map<string, InstrumentField> _id_instrument;
 map<long, string> _id_sysid; //OrderID&sysid
 char _userID[16];
+int oReq;
 
 DllExport void WINAPI CreateApi()
 {
@@ -43,7 +44,7 @@ DllExport void WINAPI ReqUserLogout()
 {
 	_session = 0;
 	api->RegisterSpi(NULL);
-	//api->Release();  //主程序会停止此处
+	api->Release();  //主程序会停止此处
 	api = NULL;
 }
 DllExport const char* WINAPI GetTradingDay()
@@ -98,6 +99,7 @@ DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection,
 
 	strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pInstrument);
 	strcpy_s(f.BrokerID, sizeof(f.BrokerID), _broker);
+	strcpy_s(f.ExchangeID, sizeof(f.ExchangeID), _id_instrument[pInstrument].ExchangeID);
 	switch (pHedge)
 	{
 	case  Speculation:
@@ -160,7 +162,7 @@ DllExport int WINAPI ReqOrderInsert(char *pInstrument, DirectionType pDirection,
 		break;
 	}
 
-	sprintf_s(f.UserOrderLocalID, "%d", ++req);
+	sprintf_s(f.UserOrderLocalID, "HaiFeng%013d", ++oReq);
 	if (pCustom == NULL)
 		pCustom = new char('\n');
 	string str(pCustom);
@@ -203,8 +205,10 @@ DllExport int WINAPI ReqOrderAction(long pOrderId)
 	strcpy_s(f.InvestorID, sizeof(f.InvestorID), _investor);
 	strcpy_s(f.UserID, sizeof(f.UserID), _userID);
 	strcpy_s(f.ExchangeID, _id_instrument[of.InstrumentID].ExchangeID);
-	//UserOrderActionLocalID
+
 	strcpy_s(f.OrderSysID, sizeof(f.OrderSysID), _id_sysid[pOrderId].c_str());
+
+	sprintf_s(f.UserOrderActionLocalID, "HaiFeng%013d", ++oReq);//实际使用后12位
 
 	return api->ReqOrderAction(&f, ++req);
 }
@@ -248,6 +252,8 @@ void CfemasTrade::OnRspUserLogin(CUstpFtdcRspUserLoginField *pRspUserLogin, CUst
 		strcpy_s(f.BrokerID, sizeof(f.BrokerID), _broker);
 		strcpy_s(f.InvestorID, sizeof(f.InvestorID), _investor);
 		api->ReqSettlementInfoConfirm(&f, ++req);*/
+		string str = string(pRspUserLogin->MaxOrderLocalID);
+		oReq = atoi(str.length() < 10 ? str.c_str() : str.substr(str.length() - 10, 10).c_str());
 
 		//查投资者
 		CUstpFtdcQryUserInvestorField f0;
@@ -387,7 +393,8 @@ void CfemasTrade::OnRspQryOrder(CUstpFtdcOrderField *pOrder, CUstpFtdcRspInfoFie
 	memset(&f, 0, sizeof(OrderField));
 	if (pOrder)
 	{
-		long id = atol(pOrder->OrderLocalID);
+		string str = string(pOrder->UserOrderLocalID);
+		long id = atoi(str.length() < 10 ? str.c_str() : str.substr(str.length() - 10, 10).c_str());
 		if (_id_order.find(id) == _id_order.end())
 		{
 			//f.AvgPrice = pOrder
@@ -453,6 +460,7 @@ void CfemasTrade::OnRspQryOrder(CUstpFtdcOrderField *pOrder, CUstpFtdcRspInfoFie
 			f.Volume = pOrder->Volume;// pOrder->VolumeTotalOriginal;
 			f.VolumeLeft = f.Volume;	//需要计算均价用
 			_id_order[f.OrderID] = f;
+			_id_sysid[id] = string(pOrder->OrderSysID);
 		}
 		else
 			f = _id_order[id];
@@ -476,8 +484,9 @@ void CfemasTrade::OnRspQryTrade(CUstpFtdcTradeField *pTrade, CUstpFtdcRspInfoFie
 	TradeField f;
 	memset(&f, 0, sizeof(TradeField));
 	if (pTrade)
-	{//精确到毫秒的时间差
-		long id = atol(pTrade->UserOrderLocalID);//->OrderLocalID);
+	{
+		string str = string(pTrade->UserOrderLocalID);
+		long id = atoi(str.length() < 10 ? str.c_str() : str.substr(str.length() - 10, 10).c_str());
 
 		if (_id_order.find(id) != _id_order.end())
 		{
@@ -489,6 +498,7 @@ void CfemasTrade::OnRspQryTrade(CUstpFtdcTradeField *pTrade, CUstpFtdcRspInfoFie
 			//f.VolumeLeft -= f.TradeVolume;
 			//((DefOnRtnOrder)_OnRtnOrder)(&f);
 		}
+
 
 		f.OrderID = id;
 
@@ -527,7 +537,7 @@ void CfemasTrade::OnRspQryTrade(CUstpFtdcTradeField *pTrade, CUstpFtdcRspInfoFie
 		}
 		strcpy_s(f.ExchangeID, sizeof(f.ExchangeID), pTrade->ExchangeID);
 		strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pTrade->InstrumentID);
-		f.OrderID = atol(pTrade->UserOrderLocalID);//  OrderLocalID);
+
 		f.Price = pTrade->TradePrice;
 		strcpy_s(f.TradeID, sizeof(f.TradeID), pTrade->TradeID);
 		strcpy_s(f.TradeTime, sizeof(f.TradeTime), pTrade->TradeTime);
@@ -599,9 +609,10 @@ void CfemasTrade::OnRspError(CUstpFtdcRspInfoField *pRspInfo, int nRequestID, bo
 
 void CfemasTrade::OnRtnOrder(CUstpFtdcOrderField *pOrder)
 {
-	long id = atol(pOrder->OrderLocalID);
-	OrderField f;
+	string str = string(pOrder->UserOrderLocalID);
+	long id = atoi(str.length() < 10 ? str.c_str() : str.substr(str.length() - 10, 10).c_str());
 
+	OrderField f;
 	if (_id_order.find(id) == _id_order.end())
 	{
 		memset(&f, 0, sizeof(OrderField));
@@ -699,7 +710,60 @@ void CfemasTrade::OnRtnOrder(CUstpFtdcOrderField *pOrder)
 
 void CfemasTrade::OnRtnTrade(CUstpFtdcTradeField *pTrade)
 {
-	long id = atol(pTrade->UserOrderLocalID);
+	TradeField f;
+	memset(&f, 0, sizeof(TradeField));
+
+	switch (pTrade->HedgeFlag)
+	{
+	case  USTP_FTDC_CHF_Speculation:
+		f.Hedge = Speculation;
+		break;
+	case  USTP_FTDC_CHF_Arbitrage:
+		f.Hedge = Arbitrage;
+		break;
+	case  USTP_FTDC_CHF_Hedge:
+		f.Hedge = Hedge;
+		break;
+	}
+	switch (pTrade->Direction)
+	{
+	case USTP_FTDC_D_Buy:
+		f.Direction = Buy;
+		break;
+	default:
+		f.Direction = Sell;
+		break;
+	}
+	switch (pTrade->OffsetFlag)
+	{
+	case USTP_FTDC_OF_Open:
+		f.Offset = Open;
+		break;
+	case USTP_FTDC_OF_CloseToday:
+		f.Offset = CloseToday;
+		break;
+	case  USTP_FTDC_OF_Close:
+		f.Offset = Close;
+		break;
+	}
+	strcpy_s(f.ExchangeID, sizeof(f.ExchangeID), pTrade->ExchangeID);
+	strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pTrade->InstrumentID);
+
+	f.Price = pTrade->TradePrice;
+	strcpy_s(f.TradeID, sizeof(f.TradeID), pTrade->TradeID);
+	strcpy_s(f.TradeTime, sizeof(f.TradeTime), pTrade->TradeTime);
+	strcpy_s(f.TradingDay, sizeof(f.TradingDay), pTrade->TradingDay);
+	f.Volume = pTrade->TradeVolume;
+
+
+	string str = string(pTrade->UserOrderLocalID);
+	long id = atoi(str.length() < 10 ? str.c_str() : str.substr(str.length() - 10, 10).c_str());
+
+	char tid[128];
+	sprintf_s(tid, "%s%d", f.TradeID, f.Direction);
+	if (_id_trade.find(tid) == _id_trade.end()) //已处理过
+		return;
+
 	if (_id_order.find(id) != _id_order.end())
 	{
 		OrderField f = _id_order[id];
@@ -718,59 +782,19 @@ void CfemasTrade::OnRtnTrade(CUstpFtdcTradeField *pTrade)
 			((DefOnRtnOrder)_OnRtnOrder)(&f);
 		}
 	}
+
+	f.OrderID = id;
+	_id_trade[string(tid)] = f;
 	if (_OnRtnTrade)
 	{
-		TradeField f;
-		memset(&f, 0, sizeof(TradeField));
-		f.OrderID = id;
-
-		switch (pTrade->HedgeFlag)
-		{
-		case  USTP_FTDC_CHF_Speculation:
-			f.Hedge = Speculation;
-			break;
-		case  USTP_FTDC_CHF_Arbitrage:
-			f.Hedge = Arbitrage;
-			break;
-		case  USTP_FTDC_CHF_Hedge:
-			f.Hedge = Hedge;
-			break;
-		}
-		switch (pTrade->Direction)
-		{
-		case USTP_FTDC_D_Buy:
-			f.Direction = Buy;
-			break;
-		default:
-			f.Direction = Sell;
-			break;
-		}
-		switch (pTrade->OffsetFlag)
-		{
-		case USTP_FTDC_OF_Open:
-			f.Offset = Open;
-			break;
-		case USTP_FTDC_OF_CloseToday:
-			f.Offset = CloseToday;
-			break;
-		case  USTP_FTDC_OF_Close:
-			f.Offset = Close;
-			break;
-		}
-		strcpy_s(f.ExchangeID, sizeof(f.ExchangeID), pTrade->ExchangeID);
-		strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pTrade->InstrumentID);
-		f.OrderID = atol(pTrade->UserOrderLocalID);
-		f.Price = pTrade->TradePrice;
-		strcpy_s(f.TradeID, sizeof(f.TradeID), pTrade->TradeID);
-		strcpy_s(f.TradeTime, sizeof(f.TradeTime), pTrade->TradeTime);
-		strcpy_s(f.TradingDay, sizeof(f.TradingDay), pTrade->TradingDay);
-		f.Volume = pTrade->TradeVolume;
 		((DefOnRtnTrade)_OnRtnTrade)(&f);
 	}
 }
 
 void CfemasTrade::OnRspOrderInsert(CUstpFtdcInputOrderField *pInputOrder, CUstpFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
 {
+	if (pRspInfo->ErrorID == 0) return;
+
 	if (_OnRtnError)
 	{
 		char msg[512];
@@ -781,6 +805,8 @@ void CfemasTrade::OnRspOrderInsert(CUstpFtdcInputOrderField *pInputOrder, CUstpF
 
 void CfemasTrade::OnErrRtnOrderInsert(CUstpFtdcInputOrderField *pInputOrder, CUstpFtdcRspInfoField *pRspInfo)
 {
+	if (pRspInfo->ErrorID == 0) return;
+
 	if (_OnRtnError)
 	{
 		char msg[512];
@@ -791,6 +817,8 @@ void CfemasTrade::OnErrRtnOrderInsert(CUstpFtdcInputOrderField *pInputOrder, CUs
 
 void CfemasTrade::OnRspOrderAction(CUstpFtdcOrderActionField *pInputOrderAction, CUstpFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
 {
+	if (pRspInfo->ErrorID == 0) return;
+
 	if (_OnRtnError)
 	{
 		char msg[512];
@@ -801,6 +829,8 @@ void CfemasTrade::OnRspOrderAction(CUstpFtdcOrderActionField *pInputOrderAction,
 
 void CfemasTrade::OnErrRtnOrderAction(CUstpFtdcOrderActionField *pOrderAction, CUstpFtdcRspInfoField *pRspInfo)
 {
+	if (pRspInfo->ErrorID == 0) return;
+
 	if (_OnRtnError)
 	{
 		char msg[512];

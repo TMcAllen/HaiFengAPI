@@ -13,36 +13,67 @@ namespace Quote2015
 {
 	///深度行情
 	[StructLayout(LayoutKind.Sequential)]
-	public class MarketData
+	public class MarketData : IComparable
 	{
-		///合约代码
+		/// <summary>
+		/// 合约代码
+		/// </summary>
 		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
 		public string InstrumentID;	//31
-		///最新价
+		/// <summary>
+		/// 最新价
+		/// </summary>
 		public double LastPrice;
+		/// <summary>
 		///申买价一
+		/// </summary>
 		public double BidPrice;
+		/// <summary>
 		///申买量一
+		/// </summary>
 		public int BidVolume;
+		/// <summary>
 		///申卖价一
+		/// </summary>
 		public double AskPrice;
+		/// <summary>
 		///申卖量一
+		/// </summary>
 		public int AskVolume;
+		/// <summary>
 		///当日均价
+		/// </summary>
 		public double AveragePrice;
+		/// <summary>
 		///数量
+		/// </summary>
 		public int Volume;
+		/// <summary>
 		///持仓量
+		/// </summary>
 		public double OpenInterest;
-		///最后修改时间:yyyyMMdd HH:mm:ss
+		/// <summary>
+		///最后修改时间:yyyyMMdd HH:mm:ss(20141114:日期由主程序处理,因大商所取到的actionday==tradingday)
+		/// </summary>
 		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
 		public string UpdateTime;
+		/// <summary>
 		///最后修改毫秒
+		/// </summary>
 		public int UpdateMillisec;
+		/// <summary>
 		///涨停板价
+		/// </summary>
 		public double UpperLimitPrice;
+		/// <summary>
 		///跌停板价
+		/// </summary>
 		public double LowerLimitPrice;
+		int IComparable.CompareTo(object obj)
+		{
+			MarketData y = (MarketData)obj;
+			return DateTime.ParseExact(UpdateTime, "yyyyMMdd HH:mm:ss", null).AddMilliseconds(UpdateMillisec).CompareTo(DateTime.ParseExact(y.UpdateTime, "yyyyMMdd HH:mm:ss", null).AddMilliseconds(y.UpdateMillisec));
+		}
 	}
 
 	public class Proxy
@@ -109,7 +140,7 @@ namespace Quote2015
 
 		private delegate void DefReqUserLogout();
 
-		private delegate string DefGetTradingDay();
+		private delegate IntPtr DefGetTradingDay();
 
 		private delegate int DefReqSubMarketData(string pInstrument);
 
@@ -262,7 +293,7 @@ namespace Quote2015
 			((DefReqUserLogout)Invoke(this._handle, "ReqUserLogout", typeof(DefReqUserLogout)))();
 		}
 
-		public string GetTradingDay()
+		public IntPtr GetTradingDay()
 		{
 			return ((DefGetTradingDay)Invoke(this._handle, "GetTradingDay", typeof(DefGetTradingDay)))();
 		}
@@ -467,23 +498,36 @@ namespace Quote2015
 				return;
 			}
 
-			var t = DicTick.GetOrAdd(pMarketData.InstrumentID, new MarketData());
+			//处理actionday==NULL{以下处理无效:大商所夜盘中的actionday==tradingday}
+			//if (pMarketData.UpdateTime.Length == 8) //只有时间
+			//{
+			//	//首tick取机器日期,否则取上tick日期
+			//	string aDay = string.IsNullOrEmpty(t.UpdateTime) ? DateTime.Today.ToString("yyyyMMdd") : t.UpdateTime.Split(' ')[0];
 
-			foreach (FieldInfo fi in typeof(MarketData).GetFields())
-			{
-				fi.SetValue(t, fi.GetValue(pMarketData));
-			}
+			//	pMarketData.UpdateTime = aDay + " " + pMarketData.UpdateTime;
+			//	//时间更小->第2天
+			//	if (String.Compare(pMarketData.UpdateTime, t.UpdateTime, StringComparison.Ordinal) < 0) 
+			//	{
+			//		pMarketData.UpdateTime = DateTime.ParseExact(aDay, "yyyyMMdd", null).AddDays(1).ToString("yyyyMMdd") + pMarketData.UpdateTime.Split(' ')[1];
+			//	}
+			//}
+				//修正数据:涨跌板
+			if (pMarketData.AskPrice > pMarketData.UpperLimitPrice)
+				{
+					pMarketData.AskPrice = pMarketData.LastPrice;
+				}
+			if (pMarketData.BidPrice > pMarketData.UpperLimitPrice)
+				{
+					pMarketData.BidPrice = pMarketData.LastPrice;
+				}
+			DicTick.AddOrUpdate(pMarketData.InstrumentID, pMarketData, (k, v) => pMarketData);
 
 			if (_OnRtnTick != null)
 			{
-				//修正数据
-				if (t.AskPrice > t.LastPrice)
+				MarketData t = new MarketData();
+				foreach (FieldInfo fi in typeof(MarketData).GetFields())
 				{
-					t.AskPrice = t.LastPrice;
-				}
-				if (t.BidPrice > t.LastPrice)
-				{
-					t.BidPrice = t.LastPrice;
+					fi.SetValue(t, fi.GetValue(pMarketData));
 				}
 				new Thread(() => _OnRtnTick(this, new TickEventArgs
 				{
@@ -521,7 +565,7 @@ namespace Quote2015
 			IsLogin = pErrId == 0;
 			if (IsLogin)
 			{
-				TradingDay = _proxy.GetTradingDay();
+				TradingDay = Marshal.PtrToStringAnsi(_proxy.GetTradingDay());
 			}
 			if (_OnRspUserLogin != null)
 			{
@@ -552,6 +596,7 @@ namespace Quote2015
 
 		public void ReqUserLogout()
 		{
+			IsLogin = false;
 			_proxy.ReqUserLogout();
 		}
 

@@ -149,7 +149,7 @@ void CxSpeed_quote_proxy::OnMarketData(struct DFITCDepthMarketDataField * pMarke
 		f.LastPrice = pMarketDataField->lastPrice;
 		f.LowerLimitPrice = pMarketDataField->lowerLimitPrice;
 		f.OpenInterest = pMarketDataField->openInterest;
-		sprintf_s(f.UpdateTime, "%s %s", pMarketDataField->tradingDay, pMarketDataField->UpdateTime);
+		sprintf_s(f.UpdateTime, "%s", pMarketDataField->UpdateTime);
 		f.UpdateMillisec = pMarketDataField->UpdateMillisec;
 		f.UpperLimitPrice = pMarketDataField->upperLimitPrice;
 		f.Volume = pMarketDataField->Volume;

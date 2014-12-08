@@ -128,7 +128,7 @@ void CfemasQuote::OnRtnDepthMarketData(CUstpFtdcDepthMarketDataField *pDepthMark
 		f.LowerLimitPrice = pDepthMarketData->LowerLimitPrice;
 		f.OpenInterest = pDepthMarketData->OpenInterest;
 		f.UpdateMillisec = pDepthMarketData->UpdateMillisec;
-		sprintf_s(f.UpdateTime, "%s %s", pDepthMarketData->TradingDay, pDepthMarketData->UpdateTime);// "%4d%2d%2d%s", day / 10000, day % 10000 / 100, day % 100, time.erase(':'));
+		sprintf_s(f.UpdateTime, "%s", pDepthMarketData->UpdateTime);// "%4d%2d%2d%s", day / 10000, day % 10000 / 100, day % 100, time.erase(':'));
 		f.UpperLimitPrice = pDepthMarketData->UpperLimitPrice;
 		f.Volume = pDepthMarketData->Volume;
 		((DefOnRtnDepthMarketData)_OnRtnDepthMarketData)(&f);

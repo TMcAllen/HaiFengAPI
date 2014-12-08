@@ -16,25 +16,35 @@ namespace ConsoleProxy
 		//输入：q1ctp /t1ctp /q2xspeed /t2speed
 		private static void Main(string[] args)
 		{
-			Console.WriteLine("选择接口:\t1-CTP  2-xSpeed  3-Femas");
-			char c = Console.ReadKey(true).KeyChar;
-
 			Trade t;
 			Quote q;
 		R:
+			Console.WriteLine("选择接口:\t1-CTP  2-xSpeed  3-Femas  4-股指仿真  5-外汇仿真");
+			char c = Console.ReadKey(true).KeyChar;
+
 			switch (c)
 			{
 				case '1': //CTP
 					t = new Trade("ctp_trade_proxy.dll")
 					{
-						Server = "tcp://211.95.40.130:51205", 
-						Broker = "1017",
+						Server = "tcp://101.95.8.178:51205", 
+						Broker = "4040",
 					};
 					q = new Quote("ctp_quote_proxy.dll")
 					{
-						Server = "tcp://211.95.40.130:51213",
-						Broker = "1017",
+						Server = "tcp://101.95.8.178:51213",
+						Broker = "4040",
 					};
+					//t = new Trade("ctp_trade_proxy.dll")
+					//{
+					//	Server = "tcp://211.95.40.130:51205", 
+					//	Broker = "1017",
+					//};
+					//q = new Quote("ctp_quote_proxy.dll")
+					//{
+					//	Server = "tcp://211.95.40.130:51213",
+					//	Broker = "1017",
+					//};
 					break;
 				case '2': //xSpeed
 					t = new Trade("xSpeed_trade_proxy.dll")
@@ -58,6 +68,30 @@ namespace ConsoleProxy
 					{
 						Server = "tcp://116.228.53.149:6888",
 						Broker = "0001",
+					};
+					break;
+				case '4': //CTP
+					t = new Trade("ctp_trade_proxy.dll")
+					{
+						Server = "tcp://124.207.185.88:41205",
+						Broker = "1010",
+					};
+					q = new Quote("ctp_quote_proxy.dll")
+					{
+						Server = "tcp://124.207.185.88:41213",
+						Broker = "1010",
+					};
+					break;
+				case '5': //CTP
+					t = new Trade("femas_trade_proxy.dll")
+					{
+						Server = "tcp://117.184.207.111:7036",
+						Broker = "2713",
+					};
+					q = new Quote("femas_quote_proxy.dll")
+					{
+						Server = "tcp://117.184.207.111:7230",
+						Broker = "2713",
 					};
 					break;
 				default:
@@ -100,7 +134,7 @@ namespace ConsoleProxy
 			t.OnRtnTrade += (sender, e) => Console.WriteLine("OnRtnTrade:{0}", e.Value.TradeID);
 
 			t.ReqConnect();
-			Thread.Sleep(1000);
+			Thread.Sleep(3000);
 
 			if (!t.IsLogin)
 				goto R;
@@ -113,7 +147,7 @@ namespace ConsoleProxy
 
 		Inst:
 			Console.WriteLine("q:退出  1-BK  2-SP  3-SK  4-BP  5-撤单");
-			Console.WriteLine("a-交易所状态  b-委托  c-成交  d-持仓  e-合约  f-权益");
+			Console.WriteLine("a-交易所状态  b-委托  c-成交  d-持仓  e-合约  f-权益 g-换合约");
 
 			DirectionType dire = DirectionType.Buy;
 			OffsetType offset = OffsetType.Open;
@@ -137,7 +171,7 @@ namespace ConsoleProxy
 					offset = OffsetType.Close;
 					break;
 				case '5':
-					t.ReqOrderAction(_orderId);
+					t.ReqOrderAction(253);
 					break;
 				case 'a':
 					Console.WriteLine(t.DicExcStatus.Aggregate("\r\n交易所状态", (cur, n) => cur + "\r\n" + n.Key + "=>" + n.Value));
@@ -164,6 +198,11 @@ namespace ConsoleProxy
 				case 'f':
 					Console.WriteLine(t.TradingAccount.GetType().GetFields().Aggregate("\r\n权益\t", (cur, n) => cur + ","
 						+ n.GetValue(t.TradingAccount).ToString()));
+					break;
+				case 'g':
+					Console.WriteLine("请输入合约:");
+					inst = Console.ReadLine();
+					q.ReqSubscribeMarketData(inst);
 					break;
 				case 'q':
 					q.ReqUserLogout();

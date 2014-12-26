@@ -124,6 +124,31 @@
             套保
             </summary>
         </member>
+        <member name="T:Trade2015.ProductClassType">
+            <summary>
+            品种类型
+            </summary>
+        </member>
+        <member name="F:Trade2015.ProductClassType.Futures">
+            <summary>
+            期货
+            </summary>
+        </member>
+        <member name="F:Trade2015.ProductClassType.Options">
+            <summary>
+            期货期权
+            </summary>
+        </member>
+        <member name="F:Trade2015.ProductClassType.Combination">
+            <summary>
+            组合
+            </summary>
+        </member>
+        <member name="F:Trade2015.ProductClassType.SpotOption">
+            <summary>
+            现货期权
+            </summary>
+        </member>
         <member name="T:Trade2015.InstrumentField">
             <summary>
             合约信息
@@ -152,6 +177,11 @@
         <member name="F:Trade2015.InstrumentField.PriceTick">
             <summary>
             最小变动价位
+            </summary>
+        </member>
+        <member name="F:Trade2015.InstrumentField.ProductClass">
+            <summary>
+            品种类型
             </summary>
         </member>
         <member name="T:Trade2015.PositionField">

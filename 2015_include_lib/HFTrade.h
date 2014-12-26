@@ -132,6 +132,38 @@ enum HedgeType : int
 	/// </summary>
 	Hedge,
 };
+
+enum ProductClassType :int
+{
+	/// <summary>
+	/// 期货
+	/// </summary>
+	Futures,
+	/// <summary>
+	/// 期货期权
+	/// </summary>
+	Options,
+	/// <summary>
+	/// 组合
+	/// </summary>
+	Combination,
+	/// <summary>
+	/// 现货期权
+	/// </summary>
+	SpotOption,
+};
+	///期货
+//#define THOST_FTDC_PC_Futures '1'
+//	///期货期权
+//#define THOST_FTDC_PC_Options '2'
+//	///组合
+//#define THOST_FTDC_PC_Combination '3'
+//	///即期
+//#define THOST_FTDC_PC_Spot '4'
+//	///期转现
+//#define THOST_FTDC_PC_EFP '5'
+//	///现货期权
+//#define THOST_FTDC_PC_SpotOption '6'
 #pragma endregion enum
 
 #pragma region structs
@@ -164,6 +196,11 @@ struct InstrumentField
 	/// 最小变动价位
 	/// </summary>
 	double PriceTick;
+	
+	/// <summary>
+	/// 品种类型
+	/// </summary>
+	ProductClassType ProductClass;
 };
 
 /// <summary>

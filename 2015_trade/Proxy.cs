@@ -135,6 +135,29 @@ namespace Trade2015
 		/// </summary>
 		Hedge,
 	}
+
+	/// <summary>
+	/// 品种类型
+	/// </summary>
+	public enum ProductClassType
+	{
+		/// <summary>
+		/// 期货
+		/// </summary>
+		Futures,
+		/// <summary>
+		/// 期货期权
+		/// </summary>
+		Options,
+		/// <summary>
+		/// 组合
+		/// </summary>
+		Combination,
+		/// <summary>
+		/// 现货期权
+		/// </summary>
+		SpotOption,
+	};
 	#endregion enum
 
 	#region structs
@@ -171,6 +194,11 @@ namespace Trade2015
 		/// 最小变动价位
 		/// </summary>
 		public double PriceTick;
+
+		/// <summary>
+		/// 品种类型
+		/// </summary>
+		public ProductClassType ProductClass;
 	}
 
 	/// <summary>

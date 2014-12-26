@@ -277,6 +277,24 @@ void CctpTrade::OnRspQryInstrument(CThostFtdcInstrumentField *pInstrument, CThos
 		f.PriceTick = pInstrument->PriceTick;
 		f.VolumeMultiple = pInstrument->VolumeMultiple;
 		strcpy_s(f.ProductID, sizeof(f.ProductID), pInstrument->ProductID);
+		switch (pInstrument->ProductClass)
+		{
+		case THOST_FTDC_PC_Futures:
+			f.ProductClass = Futures;
+			break;
+		case THOST_FTDC_PC_Options:
+			f.ProductClass = Options;
+			break;
+		case THOST_FTDC_PC_Combination:
+			f.ProductClass = Combination;
+			break;
+		case THOST_FTDC_PC_SpotOption:
+			f.ProductClass = SpotOption;
+			break;
+		default:
+			f.ProductClass = Futures;
+			break;
+		}
 		_id_instrument[string(f.InstrumentID)] = f;
 
 		if (_OnRspQryInstrument)
@@ -302,13 +320,14 @@ void CctpTrade::OnRspQryTradingAccount(CThostFtdcTradingAccountField *pTradingAc
 		if (pTradingAccount)
 		{
 			f.Available = pTradingAccount->Available;
-			f.CloseProfit = pTradingAccount->CloseProfit;
+			f.CloseProfit = pTradingAccount->CloseProfit + pTradingAccount->OptionCloseProfit;
 			f.Commission = pTradingAccount->Commission;
 			f.CurrMargin = pTradingAccount->CurrMargin;
 			f.FrozenCash = pTradingAccount->FrozenCash;
-			f.PositionProfit = pTradingAccount->PositionProfit;
+			f.PositionProfit = pTradingAccount->PositionProfit + pTradingAccount->OptionValue;
 			f.PreBalance = pTradingAccount->PreBalance;
-			f.Fund = f.PreBalance + f.CloseProfit + f.PositionProfit + pTradingAccount->Deposit - pTradingAccount->Withdraw;
+			f.Fund = f.PreBalance + f.CloseProfit + f.PositionProfit + pTradingAccount->Deposit - pTradingAccount->Withdraw+
+				pTradingAccount->CashIn;
 		}
 		((DefOnRspQryTradingAccount)_OnRspQryTradingAccount)(&f);
 	}
@@ -454,6 +473,11 @@ void CctpTrade::OnRspQryOrder(CThostFtdcOrderField *pOrder, CThostFtdcRspInfoFie
 		}
 		else
 			f = _id_order[id];
+		//修复:重启后无法撤单
+		if (pOrder->OrderSysID)// && strlen(pOrder->OrderSysID) > 0)
+		{
+			_id_sysid[id] = string(pOrder->OrderSysID);  //撤单用
+		}
 	}
 	/*if (_OnRspQryOrder)
 	{
@@ -776,11 +800,140 @@ void CctpTrade::OnRtnTrade(CThostFtdcTradeField *pTrade)
 
 void CctpTrade::OnRspOrderInsert(CThostFtdcInputOrderField *pInputOrder, CThostFtdcRspInfoField *pRspInfo, int nRequestID, bool bIsLast)
 {
-	if (_OnRtnError)
+	//ref重复::重发
+	if (pRspInfo->ErrorID == 22)
 	{
-		char msg[512];
-		sprintf_s(msg, "%s:%s", "OrderInsertError:", pRspInfo->ErrorMsg);
-		((DefOnRtnError)_OnRtnError)(pRspInfo == NULL ? -1 : pRspInfo->ErrorID, msg);
+		char custom[8];
+		int len = string(pInputOrder->OrderRef).length();
+		if (len > 6)
+		{
+			for (int i = 0; i < 6; ++i)
+			{
+				custom[i] = pInputOrder->OrderRef[len - 6 + i];
+			}
+		}
+		HedgeType hedge = Speculation;
+		switch (pInputOrder->CombHedgeFlag[0])
+		{
+		case  THOST_FTDC_HF_Speculation:
+			hedge = Speculation;
+			break;
+		case  THOST_FTDC_HF_Arbitrage:
+			hedge = Arbitrage;
+			break;
+		case  THOST_FTDC_HF_Hedge:
+			hedge = Hedge;
+			break;
+		}
+		DirectionType dire = Buy;
+		switch (pInputOrder->Direction)
+		{
+		case THOST_FTDC_D_Buy:
+			dire = Buy;
+			break;
+		default:
+			dire = Sell;
+			break;
+		}
+		OffsetType offset = Open;
+		switch (pInputOrder->CombOffsetFlag[0])
+		{
+		case THOST_FTDC_OF_Open:
+			offset = Open;
+			break;
+		case THOST_FTDC_OF_CloseToday:
+			offset = CloseToday;
+			break;
+		case  THOST_FTDC_OF_Close:
+			offset = Close;
+			break;
+		}
+		OrderType type = Limit;
+		if (pInputOrder->TimeCondition == THOST_FTDC_OPT_AnyPrice)
+			type = Market;
+		else if (pInputOrder->TimeCondition == THOST_FTDC_TC_IOC)
+		{
+			if (pInputOrder->VolumeCondition = THOST_FTDC_VC_CV)
+				type = FAK;
+			else
+				type = FOK;
+		}
+		ReqOrderInsert(pInputOrder->InstrumentID, dire, offset, pInputOrder->LimitPrice, pInputOrder->VolumeTotalOriginal, hedge, type, custom);
+	}
+	else
+	{
+		OrderField f;
+		memset(&f, 0, sizeof(OrderField));
+
+		switch (pInputOrder->CombHedgeFlag[0])
+		{
+		case  THOST_FTDC_HF_Speculation:
+			f.Hedge = Speculation;
+			break;
+		case  THOST_FTDC_HF_Arbitrage:
+			f.Hedge = Arbitrage;
+			break;
+		case  THOST_FTDC_HF_Hedge:
+			f.Hedge = Hedge;
+			break;
+		}
+		switch (pInputOrder->Direction)
+		{
+		case THOST_FTDC_D_Buy:
+			f.Direction = Buy;
+			break;
+		default:
+			f.Direction = Sell;
+			break;
+		}
+		switch (pInputOrder->CombOffsetFlag[0])
+		{
+		case THOST_FTDC_OF_Open:
+			f.Offset = Open;
+			break;
+		case THOST_FTDC_OF_CloseToday:
+			f.Offset = CloseToday;
+			break;
+		case  THOST_FTDC_OF_Close:
+			f.Offset = Close;
+			break;
+		}
+		strcpy_s(f.InsertTime, sizeof(f.InsertTime), "23:59:59");
+		strcpy_s(f.InstrumentID, sizeof(f.InstrumentID), pInputOrder->InstrumentID);
+		//strcpy_s(f.TradeTime, sizeof(f.TradeTime), pOrder->UpdateTime);
+		f.IsLocal = true;// pOrder->SessionID == _session;
+		f.LimitPrice = pInputOrder->LimitPrice;
+		f.OrderID = req;
+		f.Volume = pInputOrder->VolumeTotalOriginal;
+		f.VolumeLeft = f.Volume;// pOrder->VolumeTotal;
+		//f->VolumeLeft = pOrder->VolumeTotal; //由ontrade处理
+		f.Status = Normal;
+
+		int len = string(pInputOrder->OrderRef).length();
+		if (len > 6)
+		{
+			for (int i = 0; i < 6; ++i)
+			{
+				f.Custom[i] = pInputOrder->OrderRef[len - 6 + i];
+			}
+		}
+
+		if (_OnRtnOrder)
+		{
+			((DefOnRtnOrder)_OnRtnOrder)(&f);
+		}
+
+		f.Status = Canceled;
+
+		if (_OnRtnCancel)
+			((DefOnRtnCancel)_OnRtnCancel)(&f);
+
+		if (_OnRtnError)
+		{
+			char msg[512];
+			sprintf_s(msg, "%s:%s", "OrderInsertError:", pRspInfo->ErrorMsg);
+			((DefOnRtnError)_OnRtnError)(pRspInfo == NULL ? -1 : pRspInfo->ErrorID, msg);
+		}
 	}
 }
 

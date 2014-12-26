@@ -511,16 +511,23 @@ namespace Quote2015
 			//		pMarketData.UpdateTime = DateTime.ParseExact(aDay, "yyyyMMdd", null).AddDays(1).ToString("yyyyMMdd") + pMarketData.UpdateTime.Split(' ')[1];
 			//	}
 			//}
-				//修正数据:涨跌板
+			//修正数据:涨跌板
 			if (pMarketData.AskPrice > pMarketData.UpperLimitPrice)
-				{
-					pMarketData.AskPrice = pMarketData.LastPrice;
-				}
+			{
+				pMarketData.AskPrice = pMarketData.LastPrice;
+			}
 			if (pMarketData.BidPrice > pMarketData.UpperLimitPrice)
+			{
+				pMarketData.BidPrice = pMarketData.LastPrice;
+			}
+			DicTick.AddOrUpdate(pMarketData.InstrumentID, pMarketData, (k, v) =>
+			{
+				if (pMarketData.UpdateTime == v.UpdateTime && v.UpdateMillisec < 990)  //某些交易所(如郑商所)相同秒数的ms均为0
 				{
-					pMarketData.BidPrice = pMarketData.LastPrice;
+					pMarketData.UpdateMillisec = v.UpdateMillisec + 10;
 				}
-			DicTick.AddOrUpdate(pMarketData.InstrumentID, pMarketData, (k, v) => pMarketData);
+				return pMarketData;
+			});
 
 			if (_OnRtnTick != null)
 			{

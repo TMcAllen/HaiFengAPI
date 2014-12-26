@@ -19,7 +19,7 @@ namespace ConsoleProxy
 			Trade t;
 			Quote q;
 		R:
-			Console.WriteLine("选择接口:\t1-CTP  2-xSpeed  3-Femas  4-股指仿真  5-外汇仿真");
+			Console.WriteLine("选择接口:\t1-CTP  2-xSpeed  3-Femas  4-股指仿真  5-外汇仿真  6-郑商商品期权仿真");
 			char c = Console.ReadKey(true).KeyChar;
 
 			switch (c)
@@ -92,6 +92,18 @@ namespace ConsoleProxy
 					{
 						Server = "tcp://117.184.207.111:7230",
 						Broker = "2713",
+					};
+					break;
+				case '6': //CTP
+					t = new Trade("ctp_trade_proxy.dll")
+					{
+						Server = "tcp://106.39.36.72:51205",
+						Broker = "1010",
+					};
+					q = new Quote("ctp_quote_proxy.dll")
+					{
+						Server = "tcp://106.39.36.72:51213",
+						Broker = "1010",
 					};
 					break;
 				default:
